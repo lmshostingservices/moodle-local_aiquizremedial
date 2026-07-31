@@ -1,0 +1,175 @@
+.local-aiqr-modules .card {
+    transition: box-shadow 0.2s ease;
+}
+
+.local-aiqr-modules .card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.aiqr-your-answer-card {
+    background: #fff8f0;
+    border-color: #f59e0b !important;
+}
+
+.aiqr-original-question {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: #333;
+    margin-bottom: 0.75rem;
+}
+
+.aiqr-student-response {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 10px 14px;
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    border-radius: 8px;
+    margin-top: 0.5rem;
+}
+
+.aiqr-student-response-label {
+    font-weight: 600;
+    color: #92400e;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.aiqr-student-response-value {
+    color: #78350f;
+    font-size: 0.95rem;
+}
+
+.aiqr-explain-text {
+    font-size: 1rem;
+    line-height: 1.7;
+    color: #333;
+}
+
+.aiqr-explain-text p {
+    margin-bottom: 0.75rem;
+}
+
+/* v1.2.46 FIX-PROTIP-COLOUR: Pro Tip paragraph was inheriting Moodle's default
+   muted/grey body colour and looked washed out next to the main explanation
+   text. Force the same colour, font-size and line-height as .aiqr-explain-text
+   so the Pro Tip reads as part of the same content block. */
+.aiqr-pro-tip {
+    color: #333;
+    font-size: 1rem;
+    line-height: 1.7;
+}
+
+.aiqr-feedback-text {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: #333;
+}
+
+.aiqr-option-wrapper {
+    margin: 8px 0;
+    padding: 14px 16px;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.aiqr-option-wrapper:hover {
+    border-color: #0073aa;
+    background-color: #f0f7fc;
+}
+
+/* v1.2.18 FIX-QRL-EXPLAIN: This class was applied in view.php teacher review mode
+   but was never defined in CSS, so the correct answer had no visual distinction.
+   Now highlighted with a green border and background to match the badge. */
+.aiqr-option-correct {
+    border-color: #28a745 !important;
+    background-color: #f0fff4;
+}
+
+.aiqr-option-wrapper input[type="radio"] {
+    margin: 0;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.aiqr-option-wrapper label {
+    cursor: pointer;
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    flex: 1;
+}
+
+.aiqr-section-card {
+    border-radius: 12px;
+    border: 1px solid #e0e0e0;
+    overflow: hidden;
+}
+
+.aiqr-section-card .card-body {
+    padding: 1.5rem;
+}
+
+.aiqr-section-card h4 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: #1a1a2e;
+}
+
+/* v1.2.14 FIX 7: Added max-height + object-fit to prevent tall images
+   from overflowing the remedial review card layout. */
+.aiqr-explain-image {
+    border-radius: 10px;
+    margin: 1rem 0;
+    max-width: 100%;
+    max-height: 300px;
+    object-fit: contain;
+    height: auto;
+    display: block;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.aiqr-audio-player {
+    width: 100%;
+    margin: 12px 0;
+    border-radius: 8px;
+}
+
+.aiqr-result-correct {
+    color: #155724;
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.aiqr-result-incorrect {
+    color: #856404;
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.aiqr-status-bar {
+    font-size: 0.85rem;
+    color: #666;
+    padding: 8px 0;
+    border-top: 1px solid #eee;
+    margin-top: 1rem;
+}
+
+.aiqr-module-card .badge {
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-weight: 500;
+    vertical-align: middle;
+    margin-left: 8px;
+}

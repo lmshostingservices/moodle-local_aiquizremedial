@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="local/aiquizremedial/db" VERSION="2026022500" COMMENT="AI Quiz Remedial Learning tables"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd">
+
+  <TABLES>
+
+    <TABLE NAME="local_aiqr_job" COMMENT="Remediation generation jobs">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="quizid" TYPE="int" LENGTH="10" NOTNULL="false"/>
+        <FIELD NAME="attemptid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="questionid" TYPE="int" LENGTH="10" NOTNULL="false"/>
+        <FIELD NAME="sourcetype" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="quiz"/>
+        <FIELD NAME="kcid" TYPE="int" LENGTH="10" NOTNULL="false"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="pending"/>
+        <FIELD NAME="errormsg" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_user_attempt" UNIQUE="false" FIELDS="userid,attemptid"/>
+        <INDEX NAME="idx_status" UNIQUE="false" FIELDS="status"/>
+        <INDEX NAME="idx_quiz_user" UNIQUE="false" FIELDS="quizid,userid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_aiqr_module" COMMENT="Generated remediation modules">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="jobid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="explain_text" TYPE="text" NOTNULL="true"/>
+        <FIELD NAME="explain_audio_url" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="explain_image_url" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="check_question_json" TYPE="text" NOTNULL="true"/>
+        <FIELD NAME="feedback_json" TYPE="text" NOTNULL="true"/>
+        <FIELD NAME="translations_json" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="credits_used" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="job_fk" TYPE="foreign" FIELDS="jobid" REFTABLE="local_aiqr_job" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_jobid" UNIQUE="false" FIELDS="jobid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_aiqr_completion" COMMENT="Learner completion of remediation modules">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="moduleid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="state" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="notstarted"/>
+        <FIELD NAME="attempts_count" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="completed_at" TYPE="int" LENGTH="10" NOTNULL="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_module_user" UNIQUE="true" FIELDS="moduleid,userid"/>
+        <INDEX NAME="idx_user_state" UNIQUE="false" FIELDS="userid,state"/>
+      </INDEXES>
+    </TABLE>
+
+  </TABLES>
+</XMLDB>
