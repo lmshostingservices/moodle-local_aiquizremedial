@@ -1,4 +1,12 @@
 <?php
+/**
+ * local_aiquizremedial file.
+ *
+ * @package    local_aiquizremedial
+ * @copyright  2026 LMS-Labs
+ * @license    http://www.gnu.org/licenses/gpl-3.0.html GNU GPL v3 or later
+ */
+
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -21,7 +29,6 @@ use core\hook\output\before_footer_html_generation;
 defined('MOODLE_INTERNAL') || die();
 
 class before_footer {
-
     public static function callback(before_footer_html_generation $hook): void {
         global $PAGE, $USER, $DB, $CFG;
 
@@ -67,7 +74,7 @@ class before_footer {
                                 . ($count === 0 ? '<span style="font-size:13px;color:#6b7280;">No remedial modules generated for this quiz yet.</span>' : '')
                                 . '</div>';
                             $btnjs = '<script>
-(function(){
+(function (){
     var btn = document.getElementById("aiqr-teacher-quiz-btn");
     if (!btn) return;
     // Insert after the quiz header / attempts table header if present, else top of main region.
@@ -229,7 +236,7 @@ class before_footer {
             . '</div>';
 
         $js = '<script>
-(function() {
+(function () {
     var banner = document.getElementById("aiqr-review-banner");
     if (!banner) return;
     var info = document.querySelector(".info, .quizreviewsummary, #review-summary-table, .generaltable.generalbox");

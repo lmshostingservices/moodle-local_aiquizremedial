@@ -281,7 +281,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_aiquizremedial';
-$plugin->version   = 2026072300208;
+$plugin->version   = 2026072300;
 $plugin->requires  = 2022041900; // Moodle 4.0.
 $plugin->maturity  = MATURITY_STABLE;
-$plugin->release   = '1.2.57';
+$plugin->release   = '1.2.58';

@@ -1,4 +1,19 @@
 <?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 namespace local_aiquizremedial\task;
 
 use core\task\scheduled_task;
@@ -7,7 +22,6 @@ use local_aiquizremedial\credit_calculator;
 defined('MOODLE_INTERNAL') || die();
 
 class process_jobs extends scheduled_task {
-
     public function get_name(): string {
         return get_string('task_process_jobs', 'local_aiquizremedial');
     }
@@ -56,7 +70,10 @@ class process_jobs extends scheduled_task {
      * is null (image generation silently failed during v1.2.49) and generate the missing image
      * now. No credits are charged — the image cost was already included in the original module
      * charge. Runs only when the 'Enable explanatory images' setting is on.
-     */
+ * @package    local_aiquizremedial
+ * @copyright  2026 LMS-Labs
+ * @license    http://www.gnu.org/licenses/gpl-3.0.html GNU GPL v3 or later
+ */
     private function backfill_missing_images(): void {
         global $DB;
 

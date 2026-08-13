@@ -15,23 +15,27 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * local_aiquizremedial file.
+ * Privacy Subsystem implementation for local_aiquizremedial.
  *
  * @package    local_aiquizremedial
  * @copyright  2026 LMS-Labs
  * @license    http://www.gnu.org/licenses/gpl-3.0.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
+namespace local_aiquizremedial\privacy;
 
-$tasks = [
-    [
-        'classname' => '\local_aiquizremedial\task\process_jobs',
-        'blocking'  => 0,
-        'minute'    => '*/2',
-        'hour'      => '*',
-        'day'       => '*',
-        'month'     => '*',
-        'dayofweek' => '*',
-    ],
-];
+/**
+ * Privacy Subsystem for local_aiquizremedial implementing null_provider.
+ *
+ * @package local_aiquizremedial
+ */
+class provider implements \core_privacy\local\metadata\null_provider {
+    /**
+     * Returns a reason why no user data is stored.
+     *
+     * @return string
+     */
+    public static function get_reason(): string {
+        return 'privacy:metadata';
+    }
+}
