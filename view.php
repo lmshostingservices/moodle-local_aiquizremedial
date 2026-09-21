@@ -68,10 +68,15 @@ if (!$completion && !$teacherview) {
         'state'          => 'notstarted',
         'attempts_count' => 0,
         'completed_at'   => null,
+        'firstviewed'    => time(),
         'timecreated'    => time(),
         'timemodified'   => time(),
     ];
     $completion->id = $DB->insert_record('local_aiqr_completion', $completion);
+} else if ($completion && !$teacherview && empty($completion->firstviewed)) {
+    // Version 1.5.0: record the first time the learner opened the module (Insights "opened" stage).
+    $DB->set_field('local_aiqr_completion', 'firstviewed', time(), ['id' => $completion->id]);
+    $completion->firstviewed = time();
 }
 if (!$completion) {
     // Teacher viewing a module the student has not yet opened — use a stub for display only.

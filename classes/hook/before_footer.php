@@ -222,6 +222,10 @@ class before_footer {
             $url,
             self::icon_pencil() . s(get_string('viewremediallearnings', 'local_aiquizremedial')) . $badge,
             ['class' => 'aiqr-teacher-btn']);
+        // Version 1.5.0: jump straight to this activity's insights.
+        $html .= \html_writer::link(
+            new \moodle_url('/local/aiquizremedial/insights.php', ['courseid' => $courseid, 'activity[0]' => $activity]),
+            s(get_string('quizinsights', 'local_aiquizremedial')), ['class' => 'aiqr-teacher-btn aiqr-teacher-btn-secondary']);
         if ($count === 0) {
             $html .= \html_writer::span(get_string('noremedialforquiz', 'local_aiquizremedial'), 'aiqr-muted');
         }

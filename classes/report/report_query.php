@@ -92,20 +92,33 @@ class report_query {
     protected $grouprestricted = [];
     /** @var int param counter */
     protected $pc = 0;
+    /** @var bool build conditions for the insights response table (alias r) instead of jobs (alias j) */
+    public $resp = false;
+    /** @var string page the filter URLs point at */
+    public $script = '/local/aiquizremedial/report.php';
+    /** @var string view left out of URLs (the page's default) */
+    public $defaultview = 'modules';
 
     /**
      * Build from the current request.
      *
+     * @param array $views views this page accepts
+     * @param string $defaultview
+     * @param string $script
      * @return self
      */
-    public static function from_request(): self {
+    public static function from_request(array $views = ['modules', 'students'], string $defaultview = 'modules',
+            string $script = '/local/aiquizremedial/report.php'): self {
         $q = new self();
+        $q->defaultview = $defaultview;
+        $q->script = $script;
         $q->courseid   = optional_param('courseid', 0, PARAM_INT);
         $q->category   = optional_param('category', 0, PARAM_INT);
         $q->subcats    = (bool) optional_param('subcats', 1, PARAM_BOOL);
         $q->courses    = self::ints(optional_param_array('course', [], PARAM_INT));
         $q->cohorts    = self::ints(optional_param_array('cohort', [], PARAM_INT));
-        $q->groups     = self::ints(optional_param_array('group', [], PARAM_INT));
+        // The URL key is "grp": core reads a scalar "group" parameter on separate-groups course pages.
+        $q->groups     = self::ints(optional_param_array('grp', [], PARAM_INT));
         $q->teachers   = self::ints(optional_param_array('teacher', [], PARAM_INT));
         $q->teachergroups = (bool) optional_param('teachergroups', 0, PARAM_BOOL);
         $q->sources    = array_values(
@@ -124,7 +137,8 @@ class report_query {
         $q->dateto     = self::date(optional_param('dateto', '', PARAM_ALPHANUMEXT));
         $q->search     = trim(optional_param('search', '', PARAM_TEXT));
         $q->attemptid  = optional_param('attemptid', 0, PARAM_INT);
-        $q->view       = optional_param('view', 'modules', PARAM_ALPHA) === 'students' ? 'students' : 'modules';
+        $view          = optional_param('view', $defaultview, PARAM_ALPHA);
+        $q->view       = in_array($view, $views, true) ? $view : $defaultview;
         $q->sort       = optional_param('sort', '', PARAM_ALPHA);
         $q->dir        = strtoupper(optional_param('dir', 'ASC', PARAM_ALPHA)) === 'DESC' ? 'DESC' : 'ASC';
         $q->page       = max(0, optional_param('page', 0, PARAM_INT));
@@ -236,24 +250,25 @@ class report_query {
      * @return array [sql, params]
      */
     public function scope_where(): array {
-        $where = ['j.questionid IS NOT NULL'];
+        $j = $this->resp ? 'r' : 'j';
+        $where = $this->resp ? ['1 = 1'] : ['j.questionid IS NOT NULL'];
         $params = [];
         if ($this->scopecourses !== null) {
             [$sql, $p] = $this->in($this->scopecourses);
-            $where[] = "j.courseid $sql";
+            $where[] = "{$j}.courseid $sql";
             $params += $p;
         }
         foreach ($this->grouprestricted as $cid => $groupids) {
             $cp = $this->p('rc');
             $params[$cp] = $cid;
             if (!$groupids) {
-                $where[] = "j.courseid <> :$cp";
+                $where[] = "{$j}.courseid <> :$cp";
                 continue;
             }
             [$gsql, $gp] = $this->in($groupids);
             $params += $gp;
-            $where[] = "(j.courseid <> :$cp OR EXISTS (SELECT 1 FROM {groups_members} rgm
-                                                        WHERE rgm.userid = j.userid AND rgm.groupid $gsql))";
+            $where[] = "({$j}.courseid <> :$cp OR EXISTS (SELECT 1 FROM {groups_members} rgm
+                                                        WHERE rgm.userid = {$j}.userid AND rgm.groupid $gsql))";
         }
         return [implode(' AND ', $where), $params];
     }
@@ -281,6 +296,7 @@ class report_query {
      */
     public function where(array $skip = []): array {
         global $DB;
+        $j = $this->resp ? 'r' : 'j';
         [$sql, $params] = $this->scope_where();
         $where = [$sql];
 
@@ -298,19 +314,19 @@ class report_query {
         }
         if ($this->courses && !in_array('course', $skip)) {
             [$s, $p] = $this->in($this->courses);
-            $where[] = "j.courseid $s";
+            $where[] = "{$j}.courseid $s";
             $params += $p;
         }
         if ($this->cohorts && !in_array('cohort', $skip)) {
             [$s, $p] = $this->in($this->cohorts);
-            $where[] = "EXISTS (SELECT 1 FROM {cohort_members} fchm WHERE fchm.userid = j.userid AND fchm.cohortid $s)";
+            $where[] = "EXISTS (SELECT 1 FROM {cohort_members} fchm WHERE fchm.userid = {$j}.userid AND fchm.cohortid $s)";
             $params += $p;
         }
         if ($this->groups && !in_array('group', $skip)) {
             [$s, $p] = $this->in($this->groups);
             $where[] = "EXISTS (SELECT 1 FROM {groups_members} fgm
                                   JOIN {groups} fg ON fg.id = fgm.groupid
-                                 WHERE fgm.userid = j.userid AND fg.courseid = j.courseid AND fgm.groupid $s)";
+                                 WHERE fgm.userid = {$j}.userid AND fg.courseid = {$j}.courseid AND fgm.groupid $s)";
             $params += $p;
         }
         if ($this->teachers && !in_array('teacher', $skip)) {
@@ -321,7 +337,7 @@ class report_query {
             $params[$cl] = CONTEXT_COURSE;
             $where[] = "EXISTS (SELECT 1 FROM {role_assignments} fra
                                   JOIN {context} fctx ON fctx.id = fra.contextid AND fctx.contextlevel = :$cl
-                                 WHERE fctx.instanceid = j.courseid AND fra.userid $ts AND fra.roleid $rs)";
+                                 WHERE fctx.instanceid = {$j}.courseid AND fra.userid $ts AND fra.roleid $rs)";
             if ($this->teachergroups) {
                 // Only learners sharing a group with the teacher. Courses where the teacher is
                 // not in any group are not restricted (the teacher teaches everyone there).
@@ -330,16 +346,16 @@ class report_query {
                 $params += $tp2 + $tp3;
                 $where[] = "(NOT EXISTS (SELECT 1 FROM {groups_members} tgm
                                            JOIN {groups} tg ON tg.id = tgm.groupid
-                                          WHERE tg.courseid = j.courseid AND tgm.userid $ts2)
+                                          WHERE tg.courseid = {$j}.courseid AND tgm.userid $ts2)
                              OR EXISTS (SELECT 1 FROM {groups_members} sgm
-                                          JOIN {groups} sg ON sg.id = sgm.groupid AND sg.courseid = j.courseid
+                                          JOIN {groups} sg ON sg.id = sgm.groupid AND sg.courseid = {$j}.courseid
                                           JOIN {groups_members} tgm2 ON tgm2.groupid = sgm.groupid
-                                         WHERE sgm.userid = j.userid AND tgm2.userid $ts3))";
+                                         WHERE sgm.userid = {$j}.userid AND tgm2.userid $ts3))";
             }
         }
         if ($this->sources && !in_array('source', $skip)) {
             [$s, $p] = $this->in($this->sources);
-            $where[] = "j.sourcetype $s";
+            $where[] = "{$j}.sourcetype $s";
             $params += $p;
         }
         if ($this->activities && !in_array('activity', $skip)) {
@@ -356,22 +372,23 @@ class report_query {
             $or = [];
             if ($quizids) {
                 [$s, $p] = $this->in($quizids);
-                $or[] = "(j.sourcetype = 'quiz' AND j.quizid $s)";
+                $or[] = $this->resp ? "(r.sourcetype = 'quiz' AND r.activityid $s)" : "(j.sourcetype = 'quiz' AND j.quizid $s)";
                 $params += $p;
             }
             if ($kcids) {
                 [$s, $p] = $this->in($kcids);
-                $or[] = "(j.sourcetype = 'knowledgecheck' AND j.kcid $s)";
+                $or[] = $this->resp ? "(r.sourcetype = 'knowledgecheck' AND r.activityid $s)"
+                    : "(j.sourcetype = 'knowledgecheck' AND j.kcid $s)";
                 $params += $p;
             }
             $where[] = '(' . implode(' OR ', $or) . ')';
         }
         if ($this->students && !in_array('student', $skip)) {
             [$s, $p] = $this->in($this->students);
-            $where[] = "j.userid $s";
+            $where[] = "{$j}.userid $s";
             $params += $p;
         }
-        if ($this->statuses && !in_array('status', $skip)) {
+        if ($this->statuses && !$this->resp && !in_array('status', $skip)) {
             [$s, $p] = $this->in($this->statuses);
             $where[] = '(' . helper::status_sql() . ") $s";
             $params += $p;
@@ -379,17 +396,17 @@ class report_query {
         if ($this->datefrom !== '' && !in_array('date', $skip)) {
             $dp = $this->p('df');
             $params[$dp] = $this->to_timestamp($this->datefrom, false);
-            $where[] = "j.timecreated >= :$dp";
+            $where[] = $this->resp ? "r.timefinished >= :$dp" : "j.timecreated >= :$dp";
         }
         if ($this->dateto !== '' && !in_array('date', $skip)) {
             $dp = $this->p('dt');
             $params[$dp] = $this->to_timestamp($this->dateto, true);
-            $where[] = "j.timecreated <= :$dp";
+            $where[] = $this->resp ? "r.timefinished <= :$dp" : "j.timecreated <= :$dp";
         }
         if ($this->attemptid && !in_array('attempt', $skip)) {
             $ap = $this->p('att');
             $params[$ap] = $this->attemptid;
-            $where[] = "j.attemptid = :$ap";
+            $where[] = "{$j}.attemptid = :$ap";
         }
         if ($this->search !== '' && !in_array('search', $skip)) {
             $or = [];
@@ -442,6 +459,93 @@ class report_query {
            LEFT JOIN {aiknowledgecheck_questions} kq ON kq.id = j.questionid AND j.sourcetype = 'knowledgecheck'";
         }
         return $sql;
+    }
+
+    /**
+     * FROM clause for the insights response table (alias r) with the same joined aliases as from().
+     *
+     * @return string
+     */
+    public static function resp_from(): string {
+        $sql = "FROM {local_aiqr_resp} r
+                JOIN {user} u ON u.id = r.userid AND u.deleted = 0
+                JOIN {course} co ON co.id = r.courseid
+                JOIN {course_categories} cc ON cc.id = co.category
+           LEFT JOIN {quiz} q ON q.id = r.activityid AND r.sourcetype = 'quiz'
+           LEFT JOIN {question} qq ON qq.id = r.questionid AND r.sourcetype = 'quiz'";
+        if (helper::kc_installed()) {
+            $sql .= "
+           LEFT JOIN {aiknowledgecheck} kc ON kc.id = r.activityid AND r.sourcetype = 'knowledgecheck'
+           LEFT JOIN {aiknowledgecheck_questions} kq ON kq.id = r.questionid AND r.sourcetype = 'knowledgecheck'";
+        }
+        return $sql;
+    }
+
+    /**
+     * FROM clause for the current mode.
+     *
+     * @return string
+     */
+    public function source_from(): string {
+        return $this->resp ? self::resp_from() : self::from();
+    }
+
+    /**
+     * Main table alias for the current mode.
+     *
+     * @return string
+     */
+    public function alias(): string {
+        return $this->resp ? 'r' : 'j';
+    }
+
+    /**
+     * Course-level WHERE (scope, category, course, source, activity) for tables without a learner
+     * column (statistics, actions). The table alias must be "r" and must be joined to course co
+     * and course_categories cc.
+     *
+     * @param string $activitycol activity id column
+     * @return array [sql, params]
+     */
+    public function course_where(string $activitycol = 'r.activityid'): array {
+        $saved = [$this->resp, $this->grouprestricted];
+        $this->resp = true;
+        $this->grouprestricted = [];
+        [$sql, $params] = $this->where(['cohort', 'group', 'teacher', 'student', 'status', 'date', 'search', 'attempt']);
+        [$this->resp, $this->grouprestricted] = $saved;
+        if ($activitycol !== 'r.activityid') {
+            $sql = str_replace('r.activityid', $activitycol, $sql);
+        }
+        return [$sql, $params];
+    }
+
+    /**
+     * Is the viewer limited to their own groups in any course in scope (or in the given course)?
+     *
+     * @param int $courseid 0 = any course
+     * @return bool
+     */
+    public function is_group_restricted(int $courseid = 0): bool {
+        return $courseid ? isset($this->grouprestricted[$courseid]) : (bool) $this->grouprestricted;
+    }
+
+    /**
+     * The viewer's own groups in a separate-groups course (null = not restricted).
+     *
+     * @param int $courseid
+     * @return int[]|null
+     */
+    public function restricted_groups(int $courseid): ?array {
+        return $this->grouprestricted[$courseid] ?? null;
+    }
+
+    /**
+     * Course ids in scope (null = every course).
+     *
+     * @return int[]|null
+     */
+    public function scope_courses(): ?array {
+        return $this->scopecourses;
     }
 
     /**
@@ -639,7 +743,7 @@ class report_query {
     public function category_options(): array {
         global $DB;
         [$where, $params] = $this->option_where(['category', 'course']);
-        $paths = $DB->get_fieldset_sql("SELECT DISTINCT cc.path " . self::from() . " WHERE $where", $params);
+        $paths = $DB->get_fieldset_sql("SELECT DISTINCT cc.path " . $this->source_from() . " WHERE $where", $params);
         $ids = [];
         foreach ($paths as $path) {
             foreach (explode('/', trim($path, '/')) as $id) {
@@ -658,7 +762,7 @@ class report_query {
     public function course_options(): array {
         global $DB;
         [$where, $params] = $this->option_where(['course']);
-        $rows = $DB->get_records_sql("SELECT DISTINCT co.id, co.fullname, co.shortname " . self::from()
+        $rows = $DB->get_records_sql("SELECT DISTINCT co.id, co.fullname, co.shortname " . $this->source_from()
             . " WHERE $where ORDER BY co.fullname", $params);
         $out = [];
         foreach ($rows as $r) {
@@ -681,7 +785,8 @@ class report_query {
                                         FROM {cohort} ch
                                        WHERE EXISTS (SELECT 1 FROM {cohort_members} chm
                                                       WHERE chm.cohortid = ch.id AND chm.userid IN (
-                                                            SELECT j.userid " . self::from() . " WHERE $where))
+                                                            SELECT {$this->alias()}.userid "
+                                                            . $this->source_from() . " WHERE $where))
                                     ORDER BY ch.name", $params);
         $out = [];
         foreach ($rows as $r) {
@@ -702,7 +807,8 @@ class report_query {
         $rows = $DB->get_records_sql("SELECT g.id, g.name, gc.shortname
                                         FROM {groups} g
                                         JOIN {course} gc ON gc.id = g.courseid
-                                       WHERE g.courseid IN (SELECT j.courseid " . self::from() . " WHERE $where)
+                                       WHERE g.courseid IN (SELECT {$this->alias()}.courseid "
+                                             . $this->source_from() . " WHERE $where)
                                     ORDER BY gc.shortname, g.name", $params);
         $multi = count(array_unique(array_map(function ($r) {
             return $r->shortname;
@@ -732,7 +838,8 @@ class report_query {
                                         JOIN {context} ctx ON ctx.id = ra.contextid AND ctx.contextlevel = :$cl
                                         JOIN {user} tu ON tu.id = ra.userid AND tu.deleted = 0
                                        WHERE ra.roleid $rs
-                                         AND ctx.instanceid IN (SELECT j.courseid " . self::from() . " WHERE $where)
+                                         AND ctx.instanceid IN (SELECT {$this->alias()}.courseid "
+                                             . $this->source_from() . " WHERE $where)
                                     ORDER BY tu.lastname, tu.firstname", $params);
         $out = [];
         foreach ($rows as $r) {
@@ -750,8 +857,8 @@ class report_query {
         global $DB;
         [$where, $params] = $this->option_where([]);
         $out = [];
-        $rows = $DB->get_records_sql("SELECT DISTINCT q.id, q.name, co.shortname " . self::from()
-            . " WHERE $where AND j.sourcetype = 'quiz' AND q.id IS NOT NULL ORDER BY co.shortname, q.name", $params);
+        $rows = $DB->get_records_sql("SELECT DISTINCT q.id, q.name, co.shortname " . $this->source_from()
+            . " WHERE $where AND {$this->alias()}.sourcetype = 'quiz' AND q.id IS NOT NULL ORDER BY co.shortname, q.name", $params);
         $multi = count(array_unique(array_map(function ($r) {
             return $r->shortname;
         }, $rows))) > 1;
@@ -760,8 +867,9 @@ class report_query {
         }
         if (helper::kc_installed()) {
             [$where, $params] = $this->option_where([]);
-            $rows = $DB->get_records_sql("SELECT DISTINCT kc.id, kc.name, co.shortname " . self::from()
-                . " WHERE $where AND j.sourcetype = 'knowledgecheck' AND kc.id IS NOT NULL ORDER BY kc.name", $params);
+            $rows = $DB->get_records_sql("SELECT DISTINCT kc.id, kc.name, co.shortname " . $this->source_from()
+                . " WHERE $where AND {$this->alias()}.sourcetype = 'knowledgecheck' AND kc.id IS NOT NULL
+               ORDER BY kc.name", $params);
             foreach ($rows as $r) {
                 $out['kc-' . $r->id] = format_string($r->name) . ' — ' . format_string($r->shortname);
             }
@@ -778,7 +886,7 @@ class report_query {
         global $DB;
         [$where, $params] = $this->option_where([]);
         $namefields = \core_user\fields::for_name()->get_sql('u', false, '', '', false)->selects;
-        $rows = $DB->get_records_sql("SELECT DISTINCT u.id, u.email, {$namefields} " . self::from()
+        $rows = $DB->get_records_sql("SELECT DISTINCT u.id, u.email, {$namefields} " . $this->source_from()
             . " WHERE $where ORDER BY u.lastname, u.firstname", $params, 0, 5000);
         $out = [];
         foreach ($rows as $r) {
@@ -802,7 +910,7 @@ class report_query {
             'subcats' => $this->category ? (int) $this->subcats : null,
             'course' => $this->courses,
             'cohort' => $this->cohorts,
-            'group' => $this->groups,
+            'grp' => $this->groups,
             'teacher' => $this->teachers,
             'teachergroups' => $this->teachergroups ? 1 : null,
             'source' => $this->sources,
@@ -813,7 +921,7 @@ class report_query {
             'dateto' => $this->dateto,
             'search' => $this->search,
             'attemptid' => $this->attemptid,
-            'view' => $this->view === 'modules' ? null : $this->view,
+            'view' => $this->view === $this->defaultview ? null : $this->view,
             'sort' => $this->sort,
             'dir' => $this->sort ? $this->dir : null,
             'perpage' => $this->perpage === 50 ? null : $this->perpage,
@@ -853,7 +961,7 @@ class report_query {
      * @return \moodle_url
      */
     public function url(array $override = []): \moodle_url {
-        return new \moodle_url('/local/aiquizremedial/report.php', $this->params($override));
+        return new \moodle_url($this->script, $this->params($override));
     }
 
     /**

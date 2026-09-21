@@ -2,6 +2,40 @@
 
 All notable changes to this plugin will be documented in this file.
 
+## [1.5.0] — 2026-09-21
+
+Quiz Insights and Suggested actions. The remedial report becomes a quiz-improvement tool: it shows where learners go wrong, turns patterns into tracked actions for the right person, and measures whether each fix worked. No change to prices or credit amounts.
+
+### Added
+- **Insights tab** (`insights.php`, also the course navigation link and Site administration > Reports). Uses the existing filters (category, course, cohort, group, teacher, source, activity, dates, search):
+  - Headline numbers with change vs the previous period: questions needing attention (by severity), learners affected, median % correct first try, revision completed, recovered next attempt.
+  - Problem questions ranked by learners wrong × how hard, with the top wrong answer, a 12-week sparkline, discrimination band and open action chips.
+  - Question detail: full text, answer breakdown with the key marked and top/bottom-third split, weekly trend with edit markers (shaded after the latest edit), revision funnel, AI misconception samples (never attributed), linked actions, and Open activity / Edit question links.
+  - Heatmap of % correct by question × group (one course), difficulty vs discrimination scatter with four zones, revision funnel (generated → opened → completed → Quick Check first try → recovered next attempt), and group comparison with 95% ranges.
+  - Every chart is self-contained SVG/HTML (no chart library) with hover/keyboard tooltips and a "View as table" alternative. Premium light theme, WCAG AA text contrast, severity always icon + word + colour, responsive down to phone width.
+  - "Recalculate now" per course (at most once an hour).
+- **Suggested actions tab.** 13 rules (R1–R6, R8–R14) run nightly over the last 90 days of first attempts. Each uses a rate AND a minimum count; every threshold can be changed or the rule switched off in the plugin settings.
+  - One live action per rule + question + activity + course + group; evidence refreshes nightly.
+  - Statuses: open, acknowledged, in progress, done, dismissed (reason required), snoozed, auto-resolved (condition cleared on two runs).
+  - Dismissed actions reopen only when things get worse, the sample doubles or the question is edited.
+  - Marking an action done saves a baseline; after 10 new first attempts the action shows before → after (Improved / No change / Worse). A fix that made things worse reopens as "Fix didn't work".
+  - Owner defaults to the teacher who last edited the question. Assign, comment, full audit trail, CSV/Excel export of actions and of the audit log.
+  - Notifications: R2 (possible wrong key) and R3 (a wrong option beats the key) notify immediately; everything else goes in one Monday digest per person, and nothing is sent when nothing changed.
+  - Group-level actions (R11) are only shown to that group's teachers and people who can see all groups.
+- New capability `local/aiquizremedial:manageactions` (editing teachers, managers).
+- New scheduled tasks: *Compute quiz insights and suggested actions* (daily 02:15, incremental) and *Send the weekly suggested actions digest* (Monday 07:00).
+- Settings: insights window (default 90 days), history kept (default 365 days), and per-rule enable + thresholds.
+
+### Data
+- New tables `local_aiqr_resp`, `local_aiqr_qstats`, `local_aiqr_optstats`, `local_aiqr_actstats`, `local_aiqr_action`, `local_aiqr_action_log`; new field `local_aiqr_completion.firstviewed`.
+- Responses are grouped by question bank entry, so a question's history follows it across edits. Only learners count: teachers, previews, suspended enrolments, suspended/deleted users, Knowledge Check survey-mode activities and free-text items are excluded. Shuffled options are mapped to the stored answer id.
+- % correct first try and discrimination match Moodle's Quiz statistics report (first attempts).
+- Privacy API covers the new responses, action owners and the action audit log (export; delete removes responses and anonymises the audit trail).
+
+### Changed
+- The filter panel is shared by the report and Insights pages. The group filter's URL parameter is now `grp` (a `group` parameter clashed with Moodle core on separate-groups courses).
+- The teacher quiz-page button gains a "Quiz insights" link.
+
 ## [1.4.1] — 2026-09-21
 
 Plugin-side changes for the LMS Labs GPT Image 2 image service (handoff dated 21 Sep 2026). No change to prices or credit amounts.

@@ -126,5 +126,22 @@ function xmldb_local_aiquizremedial_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026092201, 'local', 'aiquizremedial');
     }
 
+    if ($oldversion < 2026092300) {
+        // Version 1.5.0: quiz insights and suggested actions.
+        $table = new xmldb_table('local_aiqr_completion');
+        $field = new xmldb_field('firstviewed', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'completed_at');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        $xmlfile = __DIR__ . '/install.xml';
+        foreach (['local_aiqr_resp', 'local_aiqr_qstats', 'local_aiqr_optstats', 'local_aiqr_actstats',
+                'local_aiqr_action', 'local_aiqr_action_log'] as $tablename) {
+            if (!$dbman->table_exists($tablename)) {
+                $dbman->install_one_table_from_xmldb_file($xmlfile, $tablename);
+            }
+        }
+        upgrade_plugin_savepoint(true, 2026092300, 'local', 'aiquizremedial');
+    }
+
     return true;
 }

@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Remedial learning report with filtering (v1.3.0).
+ * Remedial learning report with filtering (v1.3.0; shared filters and Insights tabs since v1.5.0).
  *
  * Replaces the unfiltered teacher card list on index.php. Works per course (?courseid=X,
  * reached from course navigation / the quiz page button) or across every course the viewer
@@ -190,15 +190,9 @@ if ($q->page * $q->perpage >= $total && $total > 0) {
     $q->page = (int) floor(($total - 1) / $q->perpage);
 }
 
-$options = [
-    'category' => $q->courseid ? [] : $q->category_options(),
-    'course'   => $q->courseid ? [] : $q->course_options(),
-    'cohort'   => $q->cohort_options(),
-    'group'    => $q->group_options(),
-    'teacher'  => $q->teacher_options(),
-    'activity' => $q->activity_options(),
-    'student'  => $q->student_options(),
-];
+$filterfields = ['search', 'category', 'course', 'cohort', 'group', 'teacher', 'source', 'activity', 'student', 'status',
+    'dates', 'perpage'];
+$options = \local_aiquizremedial\report\filters::options($q, $filterfields);
 
 echo $OUTPUT->header();
 if ($q->courseid) {
@@ -214,216 +208,12 @@ if ($q->courseid) {
     );
 }
 
-// ── Filter form ─────────────────────────────────────────────────────────────
-$selectfield = function (string $name, string $label, array $opts, array $selected, string $placeholder,
-        bool $multiple = true, string $extra = '') {
-    $id = 'aiqr-f-' . $name;
-    $html = html_writer::start_div('aiqr-filter-field');
-    $html .= html_writer::tag('label', s($label), ['for' => $id, 'class' => 'aiqr-filter-label']);
-    $attrs = ['id' => $id, 'class' => 'form-select custom-select aiqr-filter-select', 'data-placeholder' => $placeholder];
-    if ($multiple) {
-        $attrs['multiple'] = 'multiple';
-        $attrs['name'] = $name . '[]';
-    } else {
-        $attrs['name'] = $name;
-    }
-    $html .= html_writer::start_tag('select', $attrs);
-    if (!$multiple) {
-        $html .= html_writer::tag('option', s($placeholder), ['value' => 0]);
-    }
-    foreach ($opts as $value => $text) {
-        $oattrs = ['value' => $value];
-        if (in_array((string) $value, array_map('strval', $selected), true)) {
-            $oattrs['selected'] = 'selected';
-        }
-        $html .= html_writer::tag('option', s($text), $oattrs);
-    }
-    $html .= html_writer::end_tag('select');
-    $html .= $extra;
-    $html .= html_writer::end_div();
-    return $html;
-};
-$checkbox = function (string $name, string $label, bool $checked) {
-    $id = 'aiqr-f-' . $name;
-    return html_writer::div(
-        html_writer::empty_tag('input', ['type' => 'hidden', 'name' => $name, 'value' => 0]) .
-        html_writer::empty_tag(
-            'input', ['type' => 'checkbox', 'name' => $name, 'value' => 1, 'id' => $id,
-            'class' => 'form-check-input'] + ($checked ? ['checked' => 'checked'] : [])) .
-        html_writer::tag('label', s($label), ['for' => $id, 'class' => 'form-check-label']),
-        'form-check aiqr-filter-check'
-    );
-};
-
+// ── Filter form + chips ─────────────────────────────────────────────────────
 $activecount = $q->active_count();
-echo html_writer::start_tag('details', ['class' => 'aiqr-filters card mb-3', 'open' => 'open']);
-echo html_writer::tag(
-    'summary',
-    html_writer::span(get_string('filters', 'local_aiquizremedial'), 'aiqr-filters-title') .
-    ($activecount ? html_writer::span(
-        get_string('filtersactive', 'local_aiquizremedial', $activecount),
-        'aiqr-pill aiqr-pill-active') : ''),
-    ['class' => 'card-header']);
-echo html_writer::start_tag(
-    'form', ['method' => 'get', 'action' => (new moodle_url('/local/aiquizremedial/report.php'))->out(false),
-    'class' => 'card-body aiqr-filter-form', 'id' => 'aiqr-filter-form']);
-foreach (['courseid' => $q->courseid, 'view' => $q->view, 'sort' => $q->sort, 'dir' => $q->sort ? $q->dir : '',
-        'attemptid' => $q->attemptid] as $n => $v) {
-    if ($v) {
-        echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => $n, 'value' => $v]);
-    }
-}
-echo html_writer::start_div('aiqr-filter-grid');
-
-// Search.
-echo html_writer::start_div('aiqr-filter-field aiqr-filter-wide');
-echo html_writer::tag(
-    'label', get_string('filter_search', 'local_aiquizremedial'), ['for' => 'aiqr-f-search',
-    'class' => 'aiqr-filter-label']);
-echo html_writer::empty_tag(
-    'input', ['type' => 'search', 'name' => 'search', 'id' => 'aiqr-f-search', 'value' => $q->search,
-    'class' => 'form-control', 'placeholder' => get_string('filter_search_placeholder', 'local_aiquizremedial')]);
-echo html_writer::end_div();
-
-if (!$q->courseid) {
-    echo $selectfield(
-        'category', get_string('category'), $options['category'], [$q->category],
-        get_string('filter_anycategory', 'local_aiquizremedial'), false,
-        $checkbox('subcats', get_string('filter_subcats', 'local_aiquizremedial'), $q->subcats));
-    echo $selectfield(
-        'course', get_string('course'), $options['course'], $q->courses,
-        get_string('filter_anycourse', 'local_aiquizremedial'));
-}
-echo $selectfield(
-    'cohort', get_string('cohort', 'cohort'), $options['cohort'], $q->cohorts,
-    get_string('filter_anycohort', 'local_aiquizremedial'));
-echo $selectfield(
-    'group', get_string('group'), $options['group'], $q->groups,
-    get_string('filter_anygroup', 'local_aiquizremedial'));
-echo $selectfield(
-    'teacher', get_string('filter_teacher', 'local_aiquizremedial'), $options['teacher'], $q->teachers,
-    get_string('filter_anyteacher', 'local_aiquizremedial'), true,
-    $checkbox('teachergroups', get_string('filter_teachergroups', 'local_aiquizremedial'), $q->teachergroups));
-$sourcelabels = ['quiz' => get_string('source_quiz', 'local_aiquizremedial'),
-    'knowledgecheck' => get_string('source_knowledgecheck', 'local_aiquizremedial')];
-if (helper::kc_installed()) {
-    echo $selectfield(
-        'source', get_string('filter_source', 'local_aiquizremedial'), $sourcelabels, $q->sources,
-        get_string('filter_anysource', 'local_aiquizremedial'));
-}
-echo $selectfield(
-    'activity', get_string('col_activity', 'local_aiquizremedial'), $options['activity'], $q->activities,
-    get_string('filter_anyactivity', 'local_aiquizremedial'));
-echo $selectfield(
-    'student', get_string('col_student', 'local_aiquizremedial'), $options['student'], $q->students,
-    get_string('filter_anystudent', 'local_aiquizremedial'));
-echo $selectfield(
-    'status', get_string('status_label', 'local_aiquizremedial'), $statuslabels, $q->statuses,
-    get_string('filter_anystatus', 'local_aiquizremedial'));
-
-// Dates.
-echo html_writer::start_div('aiqr-filter-field');
-echo html_writer::tag(
-    'label', get_string('filter_dates', 'local_aiquizremedial'), ['class' => 'aiqr-filter-label',
-    'for' => 'aiqr-f-datefrom']);
-echo html_writer::start_div('aiqr-filter-daterow');
-echo html_writer::empty_tag(
-    'input', ['type' => 'date', 'name' => 'datefrom', 'id' => 'aiqr-f-datefrom',
-    'value' => $q->datefrom, 'class' => 'form-control', 'aria-label' => get_string('filter_datefrom', 'local_aiquizremedial')]);
-echo html_writer::span('–', 'aiqr-filter-dash');
-echo html_writer::empty_tag(
-    'input', ['type' => 'date', 'name' => 'dateto', 'id' => 'aiqr-f-dateto',
-    'value' => $q->dateto, 'class' => 'form-control', 'aria-label' => get_string('filter_dateto', 'local_aiquizremedial')]);
-echo html_writer::end_div();
-echo html_writer::end_div();
-
-// Per page.
-$ppopts = array_combine(report_query::PERPAGE, report_query::PERPAGE);
-echo html_writer::start_div('aiqr-filter-field');
-echo html_writer::tag(
-    'label', get_string('filter_perpage', 'local_aiquizremedial'), ['for' => 'aiqr-f-perpage',
-    'class' => 'aiqr-filter-label']);
-echo html_writer::select(
-    $ppopts, 'perpage', $q->perpage, false, ['id' => 'aiqr-f-perpage',
-    'class' => 'form-select custom-select']);
-echo html_writer::end_div();
-
-echo html_writer::end_div(); // Grid.
-
-echo html_writer::start_div('aiqr-filter-actions');
-echo html_writer::tag(
-    'button', get_string('filter_apply', 'local_aiquizremedial'), ['type' => 'submit',
-    'class' => 'btn btn-primary']);
-$reseturl = new moodle_url(
-    '/local/aiquizremedial/report.php', array_filter(
-    ['courseid' => $q->courseid,
-    'view' => $q->view === 'students' ? 'students' : null]));
-echo html_writer::link($reseturl, get_string('filter_reset', 'local_aiquizremedial'), ['class' => 'btn btn-outline-secondary']);
-echo html_writer::end_div();
-echo html_writer::end_tag('form');
-echo html_writer::end_tag('details');
-
-foreach (['course', 'cohort', 'group', 'teacher', 'source', 'activity', 'student', 'status'] as $name) {
-    if (($q->courseid && $name === 'course') || ($name === 'source' && !helper::kc_installed())) {
-        continue;
-    }
-    $PAGE->requires->js_call_amd(
-        'core/form-autocomplete', 'enhance', ['#aiqr-f-' . $name, false, false,
-        get_string('filter_typetosearch', 'local_aiquizremedial'), false, true,
-        get_string('filter_noselection', 'local_aiquizremedial')]);
-}
-
-// ── Active filter chips ─────────────────────────────────────────────────────
-if ($activecount) {
-    $chips = [];
-    $chip = function (string $label, string $value, array $override) use ($q) {
-        $url = $q->url($override + ['page' => null]);
-        return html_writer::link(
-            $url, html_writer::span(s($label) . ': ', 'aiqr-chip-label') . s($value) .
-            html_writer::span('×', 'aiqr-chip-x', ['aria-hidden' => 'true']),
-            ['class' => 'aiqr-chip', 'title' => get_string('filter_remove', 'local_aiquizremedial')]);
-    };
-    $multichips = function (string $key, string $label, array $values, array $opts) use ($chip) {
-        $out = [];
-        foreach ($values as $v) {
-            $rest = array_values(array_diff($values, [$v]));
-            $out[] = $chip($label, $opts[$v] ?? (string) $v, [$key => $rest]);
-        }
-        return $out;
-    };
-    if ($q->search !== '') {
-        $chips[] = $chip(get_string('filter_search', 'local_aiquizremedial'), '"' . $q->search . '"', ['search' => null]);
-    }
-    if ($q->category) {
-        $chips[] = $chip(
-            get_string('category'), ($options['category'][$q->category] ?? $q->category) .
-            ($q->subcats ? ' ' . get_string('filter_andsubcats', 'local_aiquizremedial') : ''), ['category' => null]);
-    }
-    $chips = array_merge(
-        $chips,
-        $multichips('course', get_string('course'), $q->courses, $options['course']),
-        $multichips('cohort', get_string('cohort', 'cohort'), $q->cohorts, $options['cohort']),
-        $multichips('group', get_string('group'), $q->groups, $options['group']),
-        $multichips('teacher', get_string('filter_teacher', 'local_aiquizremedial'), $q->teachers, $options['teacher']),
-        $multichips('source', get_string('filter_source', 'local_aiquizremedial'), $q->sources, $sourcelabels),
-        $multichips('activity', get_string('col_activity', 'local_aiquizremedial'), $q->activities, $options['activity']),
-        $multichips('student', get_string('col_student', 'local_aiquizremedial'), $q->students, $options['student']),
-        $multichips('status', get_string('status_label', 'local_aiquizremedial'), $q->statuses, $statuslabels)
-    );
-    if ($q->datefrom !== '') {
-        $chips[] = $chip(get_string('filter_datefrom', 'local_aiquizremedial'), $q->datefrom, ['datefrom' => null]);
-    }
-    if ($q->dateto !== '') {
-        $chips[] = $chip(get_string('filter_dateto', 'local_aiquizremedial'), $q->dateto, ['dateto' => null]);
-    }
-    if ($q->attemptid) {
-        $chips[] = $chip(get_string('filter_attempt', 'local_aiquizremedial'), '#' . $q->attemptid, ['attemptid' => null]);
-    }
-    echo html_writer::div(
-        implode('', $chips) .
-        html_writer::link($reseturl, get_string('filter_clearall', 'local_aiquizremedial'), ['class' => 'aiqr-chip-clear']),
-        'aiqr-chips');
-}
+$reseturl = \local_aiquizremedial\report\filters::reset_url($q);
+echo \local_aiquizremedial\report\filters::form($q, $options, $filterfields, ['sort' => $q->sort,
+    'dir' => $q->sort ? $q->dir : '', 'attemptid' => $q->attemptid]);
+echo \local_aiquizremedial\report\filters::chips($q, $options);
 
 // ── Summary cards (click to filter by status) ───────────────────────────────
 $card = function (string $label, string $value, string $variant, ?moodle_url $url = null, string $sub = '') {
@@ -451,15 +241,7 @@ echo $card(get_string('col_credits', 'local_aiquizremedial'), (string) $stats->c
 echo html_writer::end_div();
 
 // ── View tabs + toolbar ─────────────────────────────────────────────────────
-$tabs = [
-    new tabobject(
-        'modules', $q->url(['view' => null, 'sort' => null, 'dir' => null, 'page' => null]),
-        get_string('view_modules', 'local_aiquizremedial')),
-    new tabobject(
-        'students', $q->url(['view' => 'students', 'sort' => null, 'dir' => null, 'page' => null]),
-        get_string('view_students', 'local_aiquizremedial')),
-];
-echo $OUTPUT->tabtree($tabs, $q->view);
+echo \local_aiquizremedial\report\filters::tabs($q, $q->view);
 
 echo html_writer::start_div('aiqr-toolbar');
 echo html_writer::div(get_string('resultcount', 'local_aiquizremedial', $total), 'aiqr-resultcount');

@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Part of the local_aiquizremedial plugin.
+ * Message providers for suggested actions (v1.5.0).
  *
  * @package    local_aiquizremedial
  * @copyright  2026 LMS-Labs
@@ -24,32 +24,21 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$tasks = [
-    [
-        'classname' => '\local_aiquizremedial\task\process_jobs',
-        'blocking'  => 0,
-        'minute'    => '*/2',
-        'hour'      => '*',
-        'day'       => '*',
-        'month'     => '*',
-        'dayofweek' => '*',
+$messageproviders = [
+    // Possible wrong answer key (can affect grades) — sent immediately, once per action.
+    'actionurgent' => [
+        'capability' => 'local/aiquizremedial:manageactions',
+        'defaults' => [
+            'popup' => MESSAGE_PERMITTED + MESSAGE_DEFAULT_ENABLED,
+            'email' => MESSAGE_PERMITTED + MESSAGE_DEFAULT_ENABLED,
+        ],
     ],
-    [
-        'classname' => '\\local_aiquizremedial\\task\\compute_insights',
-        'blocking'  => 0,
-        'minute'    => '15',
-        'hour'      => '2',
-        'day'       => '*',
-        'month'     => '*',
-        'dayofweek' => '*',
-    ],
-    [
-        'classname' => '\\local_aiquizremedial\\task\\send_action_digest',
-        'blocking'  => 0,
-        'minute'    => '0',
-        'hour'      => '7',
-        'day'       => '*',
-        'month'     => '*',
-        'dayofweek' => '1',
+    // Monday digest of new high/critical actions and confirmed improvements.
+    'actiondigest' => [
+        'capability' => 'local/aiquizremedial:manageactions',
+        'defaults' => [
+            'popup' => MESSAGE_PERMITTED + MESSAGE_DEFAULT_ENABLED,
+            'email' => MESSAGE_PERMITTED + MESSAGE_DEFAULT_ENABLED,
+        ],
     ],
 ];

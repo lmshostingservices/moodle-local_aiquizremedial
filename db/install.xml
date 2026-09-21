@@ -71,6 +71,7 @@
         <FIELD NAME="state" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="notstarted"/>
         <FIELD NAME="attempts_count" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
         <FIELD NAME="completed_at" TYPE="int" LENGTH="10" NOTNULL="false"/>
+        <FIELD NAME="firstviewed" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="When the learner first opened the module (v1.5.0)"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
       </FIELDS>
@@ -81,6 +82,163 @@
         <INDEX NAME="idx_module_user" UNIQUE="true" FIELDS="moduleid,userid"/>
         <INDEX NAME="idx_user_state" UNIQUE="false" FIELDS="userid,state"/>
       </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_aiqr_resp" COMMENT="One row per learner per question per finished attempt (quiz and AI Knowledge Check), for quiz insights (v1.5.0)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="sourcetype" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="quiz"/>
+        <FIELD NAME="activityid" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="quiz.id or aiknowledgecheck.id"/>
+        <FIELD NAME="attemptid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="attemptno" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="1"/>
+        <FIELD NAME="isfirst" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="slot" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="nslots" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="qbeid" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Question bank entry id (quiz) or KC question id"/>
+        <FIELD NAME="questionid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="version" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="1"/>
+        <FIELD NAME="fraction" TYPE="number" LENGTH="12" NOTNULL="false" DECIMALS="7"/>
+        <FIELD NAME="maxmark" TYPE="number" LENGTH="12" NOTNULL="true" DEFAULT="1" DECIMALS="7"/>
+        <FIELD NAME="iscorrect" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="omitted" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="answerkey" TYPE="char" LENGTH="64" NOTNULL="false"/>
+        <FIELD NAME="answerlabel" TYPE="char" LENGTH="255" NOTNULL="false"/>
+        <FIELD NAME="timefinished" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_course_act" UNIQUE="false" FIELDS="courseid,sourcetype,activityid"/>
+        <INDEX NAME="idx_attempt_slot" UNIQUE="true" FIELDS="sourcetype,attemptid,slot"/>
+        <INDEX NAME="idx_qbe" UNIQUE="false" FIELDS="sourcetype,qbeid,isfirst"/>
+        <INDEX NAME="idx_user" UNIQUE="false" FIELDS="userid,sourcetype,activityid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_aiqr_qstats" COMMENT="Nightly per-question statistics per activity (v1.5.0)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="sourcetype" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="quiz"/>
+        <FIELD NAME="activityid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="qbeid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="questionid" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Latest version seen"/>
+        <FIELD NAME="slot" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="nslots" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="n" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="ncorrect" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="nomitted" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="facility" TYPE="number" LENGTH="10" NOTNULL="false" DECIMALS="5"/>
+        <FIELD NAME="discrimination" TYPE="number" LENGTH="10" NOTNULL="false" DECIMALS="5"/>
+        <FIELD NAME="ndisc" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="nmodules" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="ncompleted" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="nqcfirst" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="nreenc" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="nrecovered" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="credits" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="spark" TYPE="text" NOTNULL="false" COMMENT="JSON weekly % correct"/>
+        <FIELD NAME="versions" TYPE="text" NOTNULL="false" COMMENT="JSON per-version stats"/>
+        <FIELD NAME="timecomputed" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_uniq" UNIQUE="true" FIELDS="courseid,sourcetype,activityid,qbeid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_aiqr_optstats" COMMENT="Nightly answer-option statistics for the latest version of each question (v1.5.0)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="qstatsid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="answerkey" TYPE="char" LENGTH="64" NOTNULL="true"/>
+        <FIELD NAME="label" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="iscorrect" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="n" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="rate" TYPE="number" LENGTH="10" NOTNULL="true" DEFAULT="0" DECIMALS="5"/>
+        <FIELD NAME="ratetop" TYPE="number" LENGTH="10" NOTNULL="false" DECIMALS="5"/>
+        <FIELD NAME="ratebottom" TYPE="number" LENGTH="10" NOTNULL="false" DECIMALS="5"/>
+        <FIELD NAME="sortorder" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="qstats_fk" TYPE="foreign" FIELDS="qstatsid" REFTABLE="local_aiqr_qstats" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+
+    <TABLE NAME="local_aiqr_actstats" COMMENT="Nightly per-activity statistics (v1.5.0)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="sourcetype" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="quiz"/>
+        <FIELD NAME="activityid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="n" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="medianpct" TYPE="number" LENGTH="10" NOTNULL="false" DECIMALS="5"/>
+        <FIELD NAME="alpha" TYPE="number" LENGTH="10" NOTNULL="false" DECIMALS="5"/>
+        <FIELD NAME="timecomputed" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_uniq" UNIQUE="true" FIELDS="courseid,sourcetype,activityid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_aiqr_action" COMMENT="Suggested actions raised by the insight rules (v1.5.0)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="ruleid" TYPE="char" LENGTH="20" NOTNULL="true"/>
+        <FIELD NAME="dedupekey" TYPE="char" LENGTH="255" NOTNULL="true"/>
+        <FIELD NAME="severity" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="medium"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="open"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="categoryid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="sourcetype" TYPE="char" LENGTH="20" NOTNULL="false"/>
+        <FIELD NAME="activityid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="qbeid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="groupid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="assigneeid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="evidence" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="baseline" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="impact" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="misses" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="snoozeuntil" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="dismissreason" TYPE="char" LENGTH="40" NOTNULL="false"/>
+        <FIELD NAME="notified" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="timeresolved" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_dedupe" UNIQUE="true" FIELDS="dedupekey"/>
+        <INDEX NAME="idx_course_status" UNIQUE="false" FIELDS="courseid,status"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_aiqr_action_log" COMMENT="Append-only audit trail for suggested actions (v1.5.0)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="actionid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="0 = system"/>
+        <FIELD NAME="fromstatus" TYPE="char" LENGTH="20" NOTNULL="false"/>
+        <FIELD NAME="tostatus" TYPE="char" LENGTH="20" NOTNULL="true"/>
+        <FIELD NAME="comment" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="evidence" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="action_fk" TYPE="foreign" FIELDS="actionid" REFTABLE="local_aiqr_action" REFFIELDS="id"/>
+      </KEYS>
     </TABLE>
 
   </TABLES>

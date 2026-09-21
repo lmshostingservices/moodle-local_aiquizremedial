@@ -186,6 +186,53 @@ if ($hassiteconfig) {
         ]
     ));
 
+    // Version 1.5.0: Quiz Insights and Suggested actions.
+    $settings->add(new admin_setting_heading(
+        'local_aiquizremedial/insightsheading',
+        get_string('insights_heading', 'local_aiquizremedial'),
+        get_string('insights_heading_desc', 'local_aiquizremedial')
+    ));
+    $settings->add(new admin_setting_configselect(
+        'local_aiquizremedial/insights_window',
+        get_string('insights_window', 'local_aiquizremedial'),
+        get_string('insights_window_desc', 'local_aiquizremedial'),
+        90,
+        [30 => get_string('numdays', '', 30), 60 => get_string('numdays', '', 60), 90 => get_string('numdays', '', 90),
+            180 => get_string('numdays', '', 180), 365 => get_string('numdays', '', 365)]
+    ));
+    $settings->add(new admin_setting_configselect(
+        'local_aiquizremedial/insights_history',
+        get_string('insights_history', 'local_aiquizremedial'),
+        get_string('insights_history_desc', 'local_aiquizremedial'),
+        365,
+        [90 => get_string('numdays', '', 90), 180 => get_string('numdays', '', 180), 365 => get_string('numdays', '', 365),
+            730 => get_string('numdays', '', 730)]
+    ));
+    foreach (\local_aiquizremedial\insights\rules::catalogue() as $ruleid => $rule) {
+        $rulename = get_string('rule_' . $ruleid . '_name', 'local_aiquizremedial');
+        $settings->add(new admin_setting_heading(
+            'local_aiquizremedial/rule_' . $ruleid . '_heading',
+            $ruleid . ' · ' . $rulename,
+            get_string('rule_' . $ruleid . '_desc', 'local_aiquizremedial')
+        ));
+        $settings->add(new admin_setting_configcheckbox(
+            'local_aiquizremedial/rule_' . $ruleid . '_enabled',
+            get_string('rule_enabled', 'local_aiquizremedial', $ruleid),
+            '',
+            1
+        ));
+        foreach ($rule['params'] as $param => $default) {
+            $settings->add(new admin_setting_configtext(
+                'local_aiquizremedial/rule_' . $ruleid . '_' . $param,
+                get_string('param_' . $param, 'local_aiquizremedial') . ' (' . $ruleid . ')',
+                get_string('param_default', 'local_aiquizremedial', $default),
+                $default,
+                PARAM_FLOAT,
+                6
+            ));
+        }
+    }
+
     $ADMIN->add('localplugins', $settings);
 }
 
@@ -193,6 +240,6 @@ if ($hassiteconfig) {
 $ADMIN->add('reports', new admin_externalpage(
     'local_aiquizremedial_report',
     get_string('reporttitle', 'local_aiquizremedial'),
-    new moodle_url('/local/aiquizremedial/report.php'),
+    new moodle_url('/local/aiquizremedial/insights.php'),
     'local/aiquizremedial:viewall'
 ));

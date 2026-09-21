@@ -17,6 +17,12 @@
 /**
  * Version metadata for AI Quiz Remedial Learning.
  *
+ * v1.5.0: QUIZ INSIGHTS AND SUGGESTED ACTIONS. New Insights and Suggested actions tabs
+ *   (insights.php) built on nightly response and statistics tables; 13 rules raise tracked
+ *   actions with an audit trail, weekly digest and before/after impact measurement.
+ *   DB: local_aiqr_resp, _qstats, _optstats, _actstats, _action, _action_log;
+ *   local_aiqr_completion.firstviewed. version.php -> 2026092300.
+ *
  * v1.4.1: GPT IMAGE 2 PLUGIN-SIDE CHANGES (LMS Labs handoff, 21 Sep 2026). Original-question
  *   snapshot stored with each module and used by both initial generation and backfill; image
  *   failures classified (retry / failed / rejected) instead of collapsing to null; text is
@@ -320,7 +326,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_aiquizremedial';
-$plugin->version   = 2026092201;
+$plugin->version   = 2026092300;
 $plugin->requires  = 2022041900; // Moodle 4.0.
 $plugin->maturity  = MATURITY_STABLE;
-$plugin->release   = '1.4.1';
+$plugin->release   = '1.5.0';

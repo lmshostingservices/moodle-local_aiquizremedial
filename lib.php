@@ -93,7 +93,7 @@ function local_aiquizremedial_extend_navigation_course($navigation, $course, $co
     if (has_capability('local/aiquizremedial:viewall', $context)) {
         $navigation->add(
             get_string('reportnav', 'local_aiquizremedial'),
-            new moodle_url('/local/aiquizremedial/report.php', ['courseid' => $course->id]),
+            new moodle_url('/local/aiquizremedial/insights.php', ['courseid' => $course->id]),
             navigation_node::TYPE_CUSTOM, null, 'local_aiquizremedial_report',
             new pix_icon('i/report', '')
         );

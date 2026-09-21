@@ -53,4 +53,12 @@ $capabilities = [
             'manager' => CAP_ALLOW,
         ],
     ],
+    'local/aiquizremedial:manageactions' => [
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_COURSE,
+        'archetypes' => [
+            'editingteacher' => CAP_ALLOW,
+            'manager' => CAP_ALLOW,
+        ],
+    ],
 ];

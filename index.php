@@ -60,7 +60,9 @@ if ($isteacher && !$mine && $userid !== (int) $USER->id) {
     if ($userid || $filteruserid) {
         $params['student[0]'] = $userid ?: $filteruserid;
     }
-    redirect(new moodle_url('/local/aiquizremedial/report.php', array_filter($params)));
+    // Version 1.5.0: a plain course link lands on Insights; deep links (activity, attempt, learner) keep the list.
+    $script = count(array_filter($params)) <= 1 ? '/local/aiquizremedial/insights.php' : '/local/aiquizremedial/report.php';
+    redirect(new moodle_url($script, array_filter($params)));
 }
 
 // ── Learner view ────────────────────────────────────────────────────────────

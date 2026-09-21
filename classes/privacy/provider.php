@@ -57,6 +57,22 @@ class provider implements
             'attempts_count' => 'privacy:metadata:local_aiqr_completion:attempts_count',
             'completed_at' => 'privacy:metadata:local_aiqr_completion:completed_at',
         ], 'privacy:metadata:local_aiqr_completion');
+        // Version 1.5.0: quiz insights.
+        $collection->add_database_table('local_aiqr_resp', [
+            'userid' => 'privacy:metadata:local_aiqr_resp:userid',
+            'attemptid' => 'privacy:metadata:local_aiqr_resp:attemptid',
+            'fraction' => 'privacy:metadata:local_aiqr_resp:fraction',
+            'answerlabel' => 'privacy:metadata:local_aiqr_resp:answerlabel',
+            'timefinished' => 'privacy:metadata:local_aiqr_resp:timefinished',
+        ], 'privacy:metadata:local_aiqr_resp');
+        $collection->add_database_table('local_aiqr_action', [
+            'assigneeid' => 'privacy:metadata:local_aiqr_action:assigneeid',
+        ], 'privacy:metadata:local_aiqr_action');
+        $collection->add_database_table('local_aiqr_action_log', [
+            'userid' => 'privacy:metadata:local_aiqr_action_log:userid',
+            'comment' => 'privacy:metadata:local_aiqr_action_log:comment',
+            'timecreated' => 'privacy:metadata:local_aiqr_action_log:timecreated',
+        ], 'privacy:metadata:local_aiqr_action_log');
         $collection->add_external_location_link('aiservice', [
             'userid' => 'privacy:metadata:aiservice:userid',
             'answer' => 'privacy:metadata:aiservice:answer',
@@ -77,6 +93,18 @@ class provider implements
                                JOIN {local_aiqr_job} j ON j.courseid = ctx.instanceid AND ctx.contextlevel = :cl
                               WHERE j.userid = :userid",
             ['cl' => CONTEXT_COURSE, 'userid' => $userid]);
+        $list->add_from_sql("SELECT ctx.id
+                               FROM {context} ctx
+                               JOIN {local_aiqr_resp} r ON r.courseid = ctx.instanceid AND ctx.contextlevel = :cl
+                              WHERE r.userid = :userid",
+            ['cl' => CONTEXT_COURSE, 'userid' => $userid]);
+        $list->add_from_sql("SELECT ctx.id
+                               FROM {context} ctx
+                               JOIN {local_aiqr_action} a ON a.courseid = ctx.instanceid AND ctx.contextlevel = :cl
+                              WHERE a.assigneeid = :userid
+                                 OR EXISTS (SELECT 1 FROM {local_aiqr_action_log} l
+                                             WHERE l.actionid = a.id AND l.userid = :userid2)",
+            ['cl' => CONTEXT_COURSE, 'userid' => $userid, 'userid2' => $userid]);
         return $list;
     }
 
@@ -92,6 +120,16 @@ class provider implements
         }
         $userlist->add_from_sql(
             'userid', "SELECT userid FROM {local_aiqr_job} WHERE courseid = :courseid",
+            ['courseid' => $context->instanceid]);
+        $userlist->add_from_sql(
+            'userid', "SELECT userid FROM {local_aiqr_resp} WHERE courseid = :courseid",
+            ['courseid' => $context->instanceid]);
+        $userlist->add_from_sql(
+            'assigneeid', "SELECT assigneeid FROM {local_aiqr_action} WHERE courseid = :courseid AND assigneeid > 0",
+            ['courseid' => $context->instanceid]);
+        $userlist->add_from_sql(
+            'userid', "SELECT l.userid FROM {local_aiqr_action_log} l JOIN {local_aiqr_action} a ON a.id = l.actionid
+                        WHERE a.courseid = :courseid AND l.userid > 0",
             ['courseid' => $context->instanceid]);
     }
 
@@ -115,9 +153,6 @@ class provider implements
                                        LEFT JOIN {local_aiqr_completion} c ON c.moduleid = m.id AND c.userid = j.userid
                                            WHERE j.userid = :userid AND j.courseid = :courseid AND j.questionid IS NOT NULL",
                 ['userid' => $userid, 'courseid' => $context->instanceid]);
-            if (!$rows) {
-                continue;
-            }
             $data = [];
             foreach ($rows as $r) {
                 $data[] = (object) [
@@ -132,8 +167,49 @@ class provider implements
                     'completed' => $r->completed_at ? transform::datetime($r->completed_at) : null,
                 ];
             }
-            writer::with_context($context)->export_data(
-                [get_string('pluginname', 'local_aiquizremedial')], (object) ['modules' => $data]);
+            if ($data) {
+                writer::with_context($context)->export_data(
+                    [get_string('pluginname', 'local_aiquizremedial')], (object) ['modules' => $data]);
+            }
+
+            // Version 1.5.0: responses used by quiz insights.
+            $resp = $DB->get_records('local_aiqr_resp', ['userid' => $userid, 'courseid' => $context->instanceid],
+                'timefinished ASC, slot ASC', 'id, sourcetype, activityid, attemptid, attemptno, slot, fraction, iscorrect,
+                omitted, answerlabel, timefinished');
+            if ($resp) {
+                $out = [];
+                foreach ($resp as $r) {
+                    $out[] = (object) ['source' => $r->sourcetype, 'activityid' => $r->activityid, 'attemptid' => $r->attemptid,
+                        'attempt' => $r->attemptno, 'question' => $r->slot, 'mark' => $r->fraction,
+                        'correct' => transform::yesno((bool) $r->iscorrect), 'blank' => transform::yesno((bool) $r->omitted),
+                        'answer' => $r->answerlabel, 'finished' => transform::datetime($r->timefinished)];
+                }
+                writer::with_context($context)->export_data(
+                    [get_string('pluginname', 'local_aiquizremedial'), get_string('privacy:responses', 'local_aiquizremedial')],
+                    (object) ['responses' => $out]);
+            }
+            $logs = $DB->get_records_sql(
+                "SELECT l.id, l.actionid, a.ruleid, l.fromstatus, l.tostatus, l.comment, l.timecreated
+                   FROM {local_aiqr_action_log} l
+                   JOIN {local_aiqr_action} a ON a.id = l.actionid
+                  WHERE l.userid = :userid AND a.courseid = :courseid
+               ORDER BY l.id", ['userid' => $userid, 'courseid' => $context->instanceid]);
+            $assigned = $DB->get_records('local_aiqr_action', ['assigneeid' => $userid, 'courseid' => $context->instanceid],
+                'id', 'id, ruleid, status, timecreated');
+            if ($logs || $assigned) {
+                $out = ['changes' => [], 'assigned' => []];
+                foreach ($logs as $l) {
+                    $out['changes'][] = (object) ['action' => $l->actionid, 'rule' => $l->ruleid, 'from' => $l->fromstatus,
+                        'to' => $l->tostatus, 'comment' => $l->comment, 'time' => transform::datetime($l->timecreated)];
+                }
+                foreach ($assigned as $a) {
+                    $out['assigned'][] = (object) ['action' => $a->id, 'rule' => $a->ruleid, 'status' => $a->status,
+                        'created' => transform::datetime($a->timecreated)];
+                }
+                writer::with_context($context)->export_data(
+                    [get_string('pluginname', 'local_aiquizremedial'), get_string('privacy:actionlog', 'local_aiquizremedial')],
+                    (object) $out);
+            }
         }
     }
 
@@ -147,6 +223,7 @@ class provider implements
         global $DB;
         $params = ['courseid' => $courseid];
         $usersql = '';
+        $inparams = [];
         if ($userids !== null) {
             if (!$userids) {
                 return;
@@ -154,6 +231,17 @@ class provider implements
             [$insql, $inparams] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED);
             $usersql = " AND userid $insql";
             $params += $inparams;
+        }
+        // Version 1.5.0: insights responses are deleted; the action audit trail is kept but anonymised.
+        $DB->delete_records_select('local_aiqr_resp', "courseid = :courseid $usersql", $params);
+        $actionids = $DB->get_fieldset_select('local_aiqr_action', 'id', 'courseid = :courseid', ['courseid' => $courseid]);
+        foreach (array_chunk($actionids, 500) as $chunk) {
+            [$asql, $aparams] = $DB->get_in_or_equal($chunk, SQL_PARAMS_NAMED, 'act');
+            $DB->execute("UPDATE {local_aiqr_action_log} SET userid = 0, comment = NULL
+                           WHERE actionid $asql AND userid > 0" . $usersql, $aparams + $inparams);
+            $DB->execute("UPDATE {local_aiqr_action} SET assigneeid = 0
+                           WHERE id $asql AND assigneeid > 0" . str_replace('userid', 'assigneeid', $usersql),
+                $aparams + $inparams);
         }
         $jobids = $DB->get_fieldset_select('local_aiqr_job', 'id', "courseid = :courseid $usersql", $params);
         if (!$jobids) {
