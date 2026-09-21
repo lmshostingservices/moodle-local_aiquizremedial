@@ -17,6 +17,45 @@
 /**
  * Version metadata for AI Quiz Remedial Learning.
  *
+ * v1.4.1: GPT IMAGE 2 PLUGIN-SIDE CHANGES (LMS Labs handoff, 21 Sep 2026). Original-question
+ *   snapshot stored with each module and used by both initial generation and backfill; image
+ *   failures classified (retry / failed / rejected) instead of collapsing to null; text is
+ *   always kept and existing images never cleared; bounded retries with back-off; no second
+ *   charge. Question images are sent as their alt-text descriptions. Portrait images display
+ *   uncropped. DB: question_json, image_status, image_error, image_attempts,
+ *   image_nextattempt, image_meta. version.php -> 2026092201.
+ *
+ * v1.4.0: TUTOR LESSON CARDS. Revision modules show a 2x2 card lesson designed from
+ *   learning science: Why it seemed right / The key idea / See it at work / Lock it in, with an
+ *   answer strip first and a one-line takeaway last. The AI service is asked for
+ *   responseFormat=lesson_v1; older modules and older service responses render the same card
+ *   style from explain_text. DB: local_aiqr_module.lesson_json. version.php -> 2026092200.
+ *
+ * v1.3.1: "Apply remedial learning to" setting (Moodle quiz / AI Knowledge Check — none, one
+ *   or both). Knowledge Check fixes: survey-mode and free-text answers no longer generate
+ *   modules; 5th answer option supported. No duplicate module while one is still unfinished
+ *   for the same question. version.php -> 2026092101.
+ *
+ * v1.3.0: STUDENT VISIBILITY FIXES + TEACHER REPORT WITH FILTERS.
+ *   See CHANGELOG.md [1.3.0] for full detail. Summary:
+ *   - index.php no longer crashes ("Error reading from database") on sites without
+ *     mod_aiknowledgecheck: the KC tables are only joined when they exist.
+ *   - Students now see their revision modules on the quiz page, the quiz review page and
+ *     the course page, plus a course navigation link, with a "being prepared" state that
+ *     refreshes itself while cron generates the content.
+ *   - Unanswered (blank) questions now get a revision module (setting, default on).
+ *   - Jobs are split into a fast expand step and a generation queue with automatic
+ *     retry of failed questions and recovery of jobs stuck in 'processing'.
+ *   - Quiz attempts that are not yet graded (Moodle 5.0 'submitted' state) are retried
+ *     instead of being closed with no modules; also listens to attempt_graded.
+ *   - Extra languages setting fixed (value is comma-separated, not serialized).
+ *   - Legacy before_footer callback now renders the same banners on Moodle 4.0-4.3.
+ *   - New teacher report (report.php) with filters: category (incl. subcategories),
+ *     course, cohort, group, teacher (optionally teacher's groups only), activity,
+ *     student, status, date range and free-text search; summary stats, student
+ *     summary view, sorting, paging, CSV/Excel/ODS export, retry of failed jobs.
+ *   DB: local_aiqr_job.retries + 2 indexes. version.php -> 2026092100.
+ *
  * v1.2.48: FIX-RL-FEEDBACK-AUTOPLAY (submit.php).
  *   Quick Check feedback voiceover was NOT auto-playing when "Voiceover playback mode"
  *   was set to "Auto-play". Root cause: the auto-play logic introduced in v1.2.47 only
@@ -281,7 +320,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_aiquizremedial';
-$plugin->version   = 2026072300;
+$plugin->version   = 2026092201;
 $plugin->requires  = 2022041900; // Moodle 4.0.
 $plugin->maturity  = MATURITY_STABLE;
-$plugin->release   = '1.2.58';
+$plugin->release   = '1.4.1';

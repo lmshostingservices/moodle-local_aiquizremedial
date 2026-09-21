@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * local_aiquizremedial file.
+ * Part of the local_aiquizremedial plugin.
  *
  * @package    local_aiquizremedial
  * @copyright  2026 LMS-Labs
@@ -78,16 +78,12 @@ class credit_calculator {
     }
 
     public static function get_enabled_languages(): array {
-        $raw = get_config('local_aiquizremedial', 'extra_languages');
-        if (empty($raw)) {
-            return [];
-        }
-        $arr = @unserialize($raw);
-        if (!is_array($arr)) {
-            return [];
-        }
-        $enabled = array_keys(array_filter($arr));
-        return array_values(array_intersect($enabled, array_keys(self::SUPPORTED_LANGUAGES)));
+        // FIX-LANG-PARSE (v1.3.0): the multicheckbox setting is stored comma-separated,
+        // not serialized — see helper::parse_languages().
+        return helper::parse_languages(
+            get_config('local_aiquizremedial', 'extra_languages'),
+            array_keys(self::SUPPORTED_LANGUAGES)
+        );
     }
 
     public static function get_breakdown(): array {

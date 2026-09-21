@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * local_aiquizremedial file.
+ * Part of the local_aiquizremedial plugin.
  *
  * @package    local_aiquizremedial
  * @copyright  2026 LMS-Labs
@@ -27,6 +27,14 @@ defined('MOODLE_INTERNAL') || die();
 $observers = [
     [
         'eventname' => '\mod_quiz\event\attempt_submitted',
+        'callback'  => '\local_aiquizremedial\observer::attempt_submitted',
+        'priority'  => 9999,
+    ],
+    // Moodle 5.0+ grades an attempt after the submitted event (MDL-68806). Listening to
+    // attempt_graded as well means the job exists however the attempt was finalised.
+    // On Moodle < 5.0 this event class does not exist and the observer is simply unused.
+    [
+        'eventname' => '\mod_quiz\event\attempt_graded',
         'callback'  => '\local_aiquizremedial\observer::attempt_submitted',
         'priority'  => 9999,
     ],

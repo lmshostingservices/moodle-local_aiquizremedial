@@ -15,7 +15,13 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * local_aiquizremedial file.
+ * Learner's own revision modules.
+ *
+ * v1.3.0: teachers are redirected to report.php (filterable report) with their old URL
+ * parameters mapped across, so existing links and bookmarks keep working. The learner view
+ * no longer joins the aiknowledgecheck tables unless that plugin is installed (the
+ * unguarded join caused "Error reading from database" on sites without it), shows modules
+ * that are still being prepared, and can be filtered by course, quiz and status.
  *
  * @package    local_aiquizremedial
  * @copyright  2026 LMS-Labs
@@ -24,425 +30,223 @@
 
 require_once('../../config.php');
 
-$courseid    = optional_param('courseid',    0, PARAM_INT);
-$attemptid   = optional_param('attemptid',   0, PARAM_INT);
-$userid      = optional_param('userid',      0, PARAM_INT); // Teacher: view a specific student.
-$quizid      = optional_param('quizid',      0, PARAM_INT); // v1.2.14 Fix 10: filter by quiz.
-$filteruserid = optional_param('filteruserid', 0, PARAM_INT); // v1.2.33: student filter in teacher mode (keeps teacher overview active).
+use local_aiquizremedial\helper;
+
+$courseid     = optional_param('courseid', 0, PARAM_INT);
+$attemptid    = optional_param('attemptid', 0, PARAM_INT);
+$userid       = optional_param('userid', 0, PARAM_INT);
+$quizid       = optional_param('quizid', 0, PARAM_INT);
+$kcid         = optional_param('kcid', 0, PARAM_INT);
+$filteruserid = optional_param('filteruserid', 0, PARAM_INT);
+$status       = optional_param('status', '', PARAM_ALPHA);
+$mine         = optional_param('mine', 0, PARAM_BOOL);
 
 require_login();
 
 $context = $courseid > 0 ? context_course::instance($courseid) : context_system::instance();
 
-// Set page context immediately after resolving it — must happen before any
-// format_string() / format_text() calls, which internally access $PAGE->context.
-$PAGE->set_context($context);
+// ── Teachers → report.php ───────────────────────────────────────────────────
+$isteacher = has_capability('local/aiquizremedial:viewall', $context);
+if (!$isteacher && !$courseid && !$mine) {
+    $isteacher = (bool) get_user_capability_course('local/aiquizremedial:viewall', $USER->id, true, '', '', 1);
+}
+if ($isteacher && !$mine && $userid !== (int) $USER->id) {
+    $params = ['courseid' => $courseid ?: null, 'attemptid' => $attemptid ?: null];
+    if ($quizid) {
+        $params['activity[0]'] = 'quiz-' . $quizid;
+    } else if ($kcid) {
+        $params['activity[0]'] = 'kc-' . $kcid;
+    }
+    if ($userid || $filteruserid) {
+        $params['student[0]'] = $userid ?: $filteruserid;
+    }
+    redirect(new moodle_url('/local/aiquizremedial/report.php', array_filter($params)));
+}
 
+// ── Learner view ────────────────────────────────────────────────────────────
 if ($courseid > 0) {
+    $course = get_course($courseid);
+    require_login($course);
     require_capability('local/aiquizremedial:viewown', $context);
-    // FIX-RL-COURSE-NAV (v1.2.40): Load the course record and register it with the PAGE
-    // system so Moodle renders the standard course navigation — breadcrumbs and course
-    // menu tabs — giving teachers a clear path back to the course from this page.
-    // Previously only $PAGE->set_context() was called (course context), which is not
-    // enough: Moodle's layout engine also needs $PAGE->set_course() to know which course's
-    // navigation structure to render. Without it the page has no tabs and no breadcrumb
-    // link back to the course, leaving the teacher stranded.
-    $course = $DB->get_record('course', ['id' => $courseid], '*', MUST_EXIST);
-    $PAGE->set_course($course);
-}
-
-// ── Determine which user(s) to show ────────────────────────────────────────
-// Three modes:
-//   1. Teacher with viewall + ?userid=X  → view that specific student's modules.
-//   2. Teacher with viewall (no userid)  → view ALL students in the course.
-//   3. Default                           → view the logged-in user's own modules.
-$canviewall   = has_capability('local/aiquizremedial:viewall', $context);
-$teachermode  = false;   // All-students overview.
-$targetuserid = (int) $USER->id;
-$viewinguser  = null;
-
-if ($canviewall && $userid > 0) {
-    // Mode 1: specific student.
-    $targetuserid = $userid;
-    // FIX-RL-FULLNAME-FIELDS (v1.2.42): include all six name fields required by fullname()
-    // in Moodle™ 4.x — passing a partial user object triggers a debugging() warning
-    // ("name fields missing: firstnamephonetic, lastnamephonetic, middlename, alternatename")
-    // that surfaces in the page heading on the teacher view.
-    $viewinguser  = $DB->get_record('user', ['id' => $userid],
-        'id, firstname, lastname, firstnamephonetic, lastnamephonetic, middlename, alternatename',
-        MUST_EXIST);
-    $pageheading  = get_string('teacherstudentview', 'local_aiquizremedial', fullname($viewinguser));
-} else if ($canviewall && $userid === 0) {
-    // Mode 2: teacher overview — all students. Works with OR without a courseid in the URL.
-    // Previously required $courseid > 0, which caused teachers navigating to the plain
-    // /local/aiquizremedial/index.php URL (no params) to fall through to Mode 3 (own empty
-    // modules) even though students had completed quizzes and had fix modules waiting.
-    $teachermode  = true;
-    $targetuserid = 0;
-    // FIX-RL-QUIZID-HEADING (v1.2.34): Show quiz name in heading when arriving from a specific quiz.
-    if ($quizid > 0) {
-        $quizrecord  = $DB->get_record('quiz', ['id' => $quizid], 'name');
-        $pageheading = $quizrecord
-            ? get_string('teacherviewheading', 'local_aiquizremedial') . ' — ' . format_string($quizrecord->name)
-            : get_string('teacherviewheading', 'local_aiquizremedial');
-    } else {
-        $pageheading = get_string('teacherviewheading', 'local_aiquizremedial');
-    }
 } else {
-    // Mode 3: own modules (student, or teacher who explicitly passed their own userid).
-    $pageheading = get_string('myremedialmodules', 'local_aiquizremedial');
+    $PAGE->set_context($context);
 }
-// ───────────────────────────────────────────────────────────────────────────
 
-$urlparams = ['courseid' => $courseid];
-if ($attemptid    > 0) { $urlparams['attemptid']    = $attemptid;    }
-if ($userid       > 0) { $urlparams['userid']       = $userid;       }
-if ($quizid       > 0) { $urlparams['quizid']       = $quizid;       }
-if ($filteruserid > 0) { $urlparams['filteruserid'] = $filteruserid; }
-
+$urlparams = array_filter(
+    ['courseid' => $courseid, 'attemptid' => $attemptid, 'quizid' => $quizid, 'kcid' => $kcid,
+    'status' => $status,
+    'mine' => $mine ?: null]);
 $PAGE->set_url(new moodle_url('/local/aiquizremedial/index.php', $urlparams));
+$pageheading = get_string('myremedialmodules', 'local_aiquizremedial');
 $PAGE->set_title($pageheading);
-$PAGE->set_heading($pageheading);
-$PAGE->set_pagelayout('standard');
+$PAGE->set_heading($courseid ? format_string($course->fullname, true, ['context' => $context]) : $pageheading);
+$PAGE->set_pagelayout($courseid ? 'incourse' : 'standard');
 
-echo $OUTPUT->header();
-
-// ── Build SQL ───────────────────────────────────────────────────────────────
-if ($teachermode) {
-    // All students in the course — JOIN user table so we can show student names.
-    // BUG-REM-QUESTION-PREVIEW (v1.2.35): also JOIN {question} to get the original
-    // quiz question name so teacher cards show which question the student got wrong
-    // instead of showing the AI explain_text (which reveals the answer up-front).
-    $sql = "SELECT m.id AS moduleid, m.explain_text, m.explain_audio_url, m.explain_image_url,
-                   m.credits_used, m.timecreated AS module_created,
-                   j.quizid, j.kcid, j.questionid, j.attemptid, j.courseid,
-                   j.sourcetype, j.userid AS studentid,
-                   c.state, c.attempts_count, c.completed_at,
-                   q.name AS quizname,
-                   kc.name AS kcname,
-                   u.firstname, u.lastname,
-                   qq.name AS question_name
-            FROM {local_aiqr_module} m
-            JOIN {local_aiqr_job} j ON j.id = m.jobid
-            JOIN {user} u ON u.id = j.userid
-            LEFT JOIN {quiz} q ON q.id = j.quizid
-            LEFT JOIN {aiknowledgecheck} kc ON kc.id = j.kcid
-            LEFT JOIN {local_aiqr_completion} c ON c.moduleid = m.id AND c.userid = j.userid
-            LEFT JOIN {question} qq ON qq.id = j.questionid
-            WHERE j.status = 'ready'";
-    $params = [];
-    // Previously this clause was always applied (even when courseid=0), which meant
-    // navigating without a courseid returned zero rows because no job has courseid=0.
-    if ($courseid > 0) {
-        $sql .= " AND j.courseid = :courseid";
-        $params['courseid'] = $courseid;
-    }
-    if ($attemptid > 0) {
-        $sql .= " AND j.attemptid = :attemptid";
-        $params['attemptid'] = $attemptid;
-    }
-    // v1.2.14 Fix 10: filter teacher overview by quiz; Fix 11: filter by student.
-    if ($quizid > 0) {
-        $sql .= " AND j.quizid = :quizid";
-        $params['quizid'] = $quizid;
-    }
-    if ($userid > 0) {
-        $sql .= " AND j.userid = :filteruserid";
-        $params['filteruserid'] = $userid;
-    }
-    // v1.2.33: filteruserid keeps teacher-overview mode active while limiting to one student.
-    if ($filteruserid > 0 && $userid === 0) {
-        $sql .= " AND j.userid = :filteruserid2";
-        $params['filteruserid2'] = $filteruserid;
-    }
-    $sql .= " ORDER BY u.lastname, u.firstname, m.timecreated DESC";
-} else {
-    // Single user view (own or teacher viewing specific student).
-    // BUG-REM-QUESTION-PREVIEW (v1.2.35): JOIN {question} for question_name.
-    $sql = "SELECT m.id AS moduleid, m.explain_text, m.explain_audio_url, m.explain_image_url,
-                   m.credits_used, m.timecreated AS module_created,
-                   j.quizid, j.kcid, j.questionid, j.attemptid, j.courseid,
-                   j.sourcetype,
-                   c.state, c.attempts_count, c.completed_at,
-                   q.name AS quizname,
-                   kc.name AS kcname,
-                   qq.name AS question_name
-            FROM {local_aiqr_module} m
-            JOIN {local_aiqr_job} j ON j.id = m.jobid
-            LEFT JOIN {quiz} q ON q.id = j.quizid
-            LEFT JOIN {aiknowledgecheck} kc ON kc.id = j.kcid
-            LEFT JOIN {local_aiqr_completion} c ON c.moduleid = m.id AND c.userid = :userid
-            LEFT JOIN {question} qq ON qq.id = j.questionid
-            WHERE j.userid = :userid2 AND j.status = 'ready'";
-    $params = ['userid' => $targetuserid, 'userid2' => $targetuserid];
-    if ($courseid > 0) {
-        $sql .= " AND j.courseid = :courseid";
-        $params['courseid'] = $courseid;
-    }
-    if ($attemptid > 0) {
-        $sql .= " AND j.attemptid = :attemptid";
-        $params['attemptid'] = $attemptid;
-    }
-    // v1.2.14 Fix 10: filter single-user view by quiz too.
-    if ($quizid > 0) {
-        $sql .= " AND j.quizid = :quizid";
-        $params['quizid'] = $quizid;
-    }
-    $sql .= " ORDER BY m.timecreated DESC";
+$kc = helper::kc_installed();
+$statussql = helper::status_sql();
+$where = ['j.userid = :userid', 'j.questionid IS NOT NULL'];
+$params = ['userid' => $USER->id, 'userid2' => $USER->id];
+if ($courseid) {
+    $where[] = 'j.courseid = :courseid';
+    $params['courseid'] = $courseid;
 }
-// ───────────────────────────────────────────────────────────────────────────
+if ($attemptid) {
+    $where[] = 'j.attemptid = :attemptid';
+    $params['attemptid'] = $attemptid;
+}
+if ($quizid) {
+    $where[] = "j.quizid = :quizid AND j.sourcetype = 'quiz'";
+    $params['quizid'] = $quizid;
+}
+if ($kcid) {
+    $where[] = "j.kcid = :kcid AND j.sourcetype = 'knowledgecheck'";
+    $params['kcid'] = $kcid;
+}
+$basewhere = implode(' AND ', $where);
+if (in_array($status, ['notstarted', 'inprogress', 'complete'])) {
+    $where[] = "($statussql) = :status";
+    $params['status'] = $status;
+} else if ($status === 'outstanding') {
+    $where[] = "($statussql) IN ('notstarted', 'inprogress')";
+}
 
+$sql = "SELECT m.id AS moduleid, m.credits_used, m.timecreated AS module_created,
+               j.id AS jobid, j.quizid, j.kcid, j.questionid, j.attemptid, j.courseid, j.sourcetype, j.timecreated,
+               c.state, c.attempts_count, c.completed_at,
+               ($statussql) AS rstatus,
+               q.name AS quizname, qq.name AS question_name, co.fullname AS coursename,
+               " . ($kc ? 'kc.name AS kcname' : 'NULL AS kcname') . "
+          FROM {local_aiqr_job} j
+          JOIN {local_aiqr_module} m ON m.jobid = j.id
+          JOIN {course} co ON co.id = j.courseid
+     LEFT JOIN {local_aiqr_completion} c ON c.moduleid = m.id AND c.userid = :userid2
+     LEFT JOIN {quiz} q ON q.id = j.quizid AND j.sourcetype = 'quiz'
+     LEFT JOIN {question} qq ON qq.id = j.questionid AND j.sourcetype = 'quiz'
+     " . ($kc ? "LEFT JOIN {aiknowledgecheck} kc ON kc.id = j.kcid AND j.sourcetype = 'knowledgecheck'" : '') . "
+         WHERE " . implode(' AND ', $where) . " AND j.status = 'ready'
+      ORDER BY CASE WHEN c.state = 'complete' THEN 1 ELSE 0 END, m.timecreated DESC";
 $modules = $DB->get_records_sql($sql, $params);
 
-// BUG-REM-STATUS-FAILED (v1.2.35): in teacher mode also fetch failed question-level jobs
-// so the teacher can see which students had AI content generation failures.
-// Failed jobs have j.status='failed' and no local_aiqr_module record (with the credit-order
-// fix these are never created on failure).  Display them with a distinct "Generation Failed"
-// red badge — 0 credits used — no Review Module button.
-$failedjobs = [];
-if ($teachermode) {
-    $failedsql = "SELECT j.id AS jobid, j.quizid, j.kcid, j.questionid,
-                         j.attemptid, j.courseid, j.sourcetype,
-                         j.userid AS studentid, j.errormsg,
-                         q.name AS quizname,
-                         kc.name AS kcname,
-                         u.firstname, u.lastname,
-                         qq.name AS question_name
-                  FROM {local_aiqr_job} j
-                  JOIN {user} u ON u.id = j.userid
-                  LEFT JOIN {quiz} q ON q.id = j.quizid
-                  LEFT JOIN {aiknowledgecheck} kc ON kc.id = j.kcid
-                  LEFT JOIN {question} qq ON qq.id = j.questionid
-                  WHERE j.status = 'failed'
-                    AND j.questionid IS NOT NULL";
-    $failedparams = [];
-    if ($courseid > 0) {
-        $failedsql .= " AND j.courseid = :courseid";
-        $failedparams['courseid'] = $courseid;
-    }
-    if ($quizid > 0) {
-        $failedsql .= " AND j.quizid = :quizid";
-        $failedparams['quizid'] = $quizid;
-    }
-    if ($userid > 0) {
-        $failedsql .= " AND j.userid = :userid";
-        $failedparams['userid'] = $userid;
-    }
-    if ($filteruserid > 0 && $userid === 0) {
-        $failedsql .= " AND j.userid = :filteruserid";
-        $failedparams['filteruserid'] = $filteruserid;
-    }
-    $failedsql .= " ORDER BY u.lastname, u.firstname, j.timecreated DESC";
-    $failedjobs = $DB->get_records_sql($failedsql, $failedparams);
+$summary = helper::learner_summary((int) $USER->id, $courseid, $quizid, $attemptid, $kcid);
+
+echo $OUTPUT->header();
+echo $OUTPUT->heading($pageheading, 2);
+
+// ── Simple learner filters ──────────────────────────────────────────────────
+$mycourses = $DB->get_records_sql_menu("SELECT DISTINCT co.id, co.fullname
+                                          FROM {local_aiqr_job} j
+                                          JOIN {course} co ON co.id = j.courseid
+                                         WHERE j.userid = :userid AND j.status = 'ready' AND j.questionid IS NOT NULL
+                                      ORDER BY co.fullname", ['userid' => $USER->id]);
+echo html_writer::start_tag(
+    'form', ['method' => 'get', 'action' => (new moodle_url('/local/aiquizremedial/index.php'))->out(false),
+    'class' => 'aiqr-learner-filters']);
+if ($mine) {
+    echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'mine', 'value' => 1]);
 }
-
-// ── Teacher filter form (v1.2.33) ───────────────────────────────────────────
-// Only shown in teacher overview mode so teachers can narrow results by quiz
-// and/or student without losing the all-students overview context.
-if ($teachermode && $courseid > 0) {
-    // Fetch distinct quizzes that have ready remedial modules in this course.
-    $quizsql = "SELECT DISTINCT q.id, q.name
-                FROM {quiz} q
-                JOIN {local_aiqr_job} j ON j.quizid = q.id
-                JOIN {local_aiqr_module} m ON m.jobid = j.id
-                WHERE j.status = 'ready' AND j.courseid = :courseid
-                ORDER BY q.name";
-    $availablequizzes = $DB->get_records_sql($quizsql, ['courseid' => $courseid]);
-
-    // Fetch distinct students that have ready remedial modules (filtered by quiz if selected).
-    $studentsql = "SELECT DISTINCT u.id, u.firstname, u.lastname
-                   FROM {user} u
-                   JOIN {local_aiqr_job} j ON j.userid = u.id
-                   JOIN {local_aiqr_module} m ON m.jobid = j.id
-                   WHERE j.status = 'ready' AND j.courseid = :courseid";
-    $studentparams = ['courseid' => $courseid];
-    if ($quizid > 0) {
-        $studentsql .= " AND j.quizid = :quizid";
-        $studentparams['quizid'] = $quizid;
+if (count($mycourses) > 1 || !$courseid) {
+    $copts = [0 => get_string('filter_anycourse', 'local_aiquizremedial')];
+    foreach ($mycourses as $id => $name) {
+        $copts[$id] = format_string($name);
     }
-    $studentsql .= " ORDER BY u.lastname, u.firstname";
-    $availablestudents = $DB->get_records_sql($studentsql, $studentparams);
-
-    // Build the filter form URL (POST to GET redirect keeps URLs clean).
-    $formaction = new moodle_url('/local/aiquizremedial/index.php');
-
-    echo html_writer::start_tag('form', ['method' => 'get', 'action' => $formaction->out(false), 'class' => 'form-inline mb-3 d-flex flex-wrap align-items-center gap-2']);
+    echo html_writer::label(get_string('course'), 'aiqr-l-course', true, ['class' => 'sr-only visually-hidden']);
+    echo html_writer::select(
+        $copts, 'courseid', $courseid, false, ['id' => 'aiqr-l-course',
+        'class' => 'form-select custom-select', 'onchange' => 'this.form.submit()']);
+} else {
     echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'courseid', 'value' => $courseid]);
-
-    // Quiz filter.
-    echo html_writer::start_div('form-group mr-3 mb-2');
-    echo html_writer::tag('label', get_string('filter_by_quiz', 'local_aiquizremedial'), ['for' => 'aiqr-filter-quiz', 'class' => 'mr-2 font-weight-bold']);
-    $quizoptions = [0 => get_string('filter_all_quizzes', 'local_aiquizremedial')];
-    foreach ($availablequizzes as $q) {
-        $quizoptions[$q->id] = format_string($q->name);
-    }
-    echo html_writer::select($quizoptions, 'quizid', $quizid, false, ['id' => 'aiqr-filter-quiz', 'class' => 'custom-select mr-2']);
-    echo html_writer::end_div();
-
-    // Student filter.
-    echo html_writer::start_div('form-group mr-3 mb-2');
-    echo html_writer::tag('label', get_string('filter_by_student', 'local_aiquizremedial'), ['for' => 'aiqr-filter-student', 'class' => 'mr-2 font-weight-bold']);
-    $studentoptions = [0 => get_string('filter_all_students', 'local_aiquizremedial')];
-    foreach ($availablestudents as $s) {
-        $studentoptions[$s->id] = format_string($s->lastname . ', ' . $s->firstname);
-    }
-    echo html_writer::select($studentoptions, 'filteruserid', $filteruserid, false, ['id' => 'aiqr-filter-student', 'class' => 'custom-select mr-2']);
-    echo html_writer::end_div();
-
-    // Apply button.
-    echo html_writer::tag('button', get_string('filter_apply', 'local_aiquizremedial'), ['type' => 'submit', 'class' => 'btn btn-secondary mb-2']);
-
-    // Reset link (only when a filter is active).
-    if ($quizid > 0 || $filteruserid > 0) {
-        $reseturl = new moodle_url('/local/aiquizremedial/index.php', ['courseid' => $courseid]);
-        echo html_writer::link($reseturl, get_string('filter_reset', 'local_aiquizremedial'), ['class' => 'btn btn-outline-secondary mb-2 ml-2']);
-    }
-
-    echo html_writer::end_tag('form');
 }
-// ───────────────────────────────────────────────────────────────────────────
+$sopts = [
+    '' => get_string('filter_anystatus', 'local_aiquizremedial'),
+    'outstanding' => get_string('col_outstanding', 'local_aiquizremedial'),
+    'notstarted' => get_string('state_notstarted', 'local_aiquizremedial'),
+    'inprogress' => get_string('state_inprogress', 'local_aiquizremedial'),
+    'complete' => get_string('state_complete', 'local_aiquizremedial'),
+];
+echo html_writer::label(
+    get_string('status_label', 'local_aiquizremedial'), 'aiqr-l-status', true,
+    ['class' => 'sr-only visually-hidden']);
+echo html_writer::select(
+    $sopts, 'status', $status, false, ['id' => 'aiqr-l-status', 'class' => 'form-select custom-select',
+    'onchange' => 'this.form.submit()']);
+echo html_writer::tag(
+    'noscript', html_writer::tag(
+    'button', get_string('filter_apply', 'local_aiquizremedial'),
+    ['type' => 'submit', 'class' => 'btn btn-secondary']));
+if ($attemptid || $quizid || $kcid || $status !== '') {
+    echo html_writer::link(
+        new moodle_url('/local/aiquizremedial/index.php', array_filter(['courseid' => $courseid])),
+        get_string('filter_showall', 'local_aiquizremedial'), ['class' => 'btn btn-link']);
+}
+echo html_writer::end_tag('form');
 
-if (empty($modules) && empty($failedjobs)) {
-    $emptystr = ($teachermode || ($canviewall && $userid > 0))
-        ? get_string('nomodules_course', 'local_aiquizremedial')
-        : get_string('nomodules', 'local_aiquizremedial');
-    echo html_writer::div($emptystr, 'alert alert-info');
+// ── Progress summary + "being prepared" notice ──────────────────────────────
+if ($summary->ready > 0) {
+    $pct = (int) round($summary->complete * 100 / $summary->ready);
+    echo html_writer::div(
+        html_writer::div(get_string('learner_progress', 'local_aiquizremedial', $summary), 'aiqr-learner-progress-text') .
+        html_writer::div(
+            html_writer::div('', 'aiqr-bar-fill', ['style' => 'width:' . $pct . '%']), 'aiqr-bar aiqr-bar-lg',
+            ['role' => 'progressbar', 'aria-valuenow' => $pct, 'aria-valuemin' => 0, 'aria-valuemax' => 100]),
+        'aiqr-learner-progress'
+    );
+}
+$preparing = $summary->generating + $summary->pendingumbrellas;
+if ($preparing > 0) {
+    echo $OUTPUT->notification($summary->generating > 0
+        ? get_string('banner_preparing_message_n', 'local_aiquizremedial', $summary->generating)
+        : get_string('banner_preparing_message', 'local_aiquizremedial'), 'info', false);
+    $pollurl = new moodle_url(
+        '/local/aiquizremedial/ajax.php', ['action' => 'summary', 'sesskey' => sesskey(),
+        'courseid' => $courseid, 'quizid' => $quizid, 'attemptid' => $attemptid, 'kcid' => $kcid]);
+    echo html_writer::script('(function (){var n=' . (int) $summary->ready . ',t=0;function p(){if(++t>60)return;'
+        . 'fetch(' . json_encode($pollurl->out(false)) . ',{credentials:"same-origin"}).then(function (r){return r.json();})'
+        . '.then(function (d){if(d&&d.success&&(d.ready>n||(d.generating===0&&d.pendingumbrellas===0))){location.reload();}'
+        . 'else{setTimeout(p,15000);}}).catch(function (){setTimeout(p,30000);});}setTimeout(p,15000);})();');
+}
+
+// ── Module cards ────────────────────────────────────────────────────────────
+if (empty($modules)) {
+    if ($preparing === 0) {
+        echo html_writer::div(get_string('nomodules', 'local_aiquizremedial'), 'alert alert-info');
+    }
 } else {
     echo html_writer::start_div('local-aiqr-modules');
-
     foreach ($modules as $mod) {
-        $state = $mod->state ?? 'notstarted';
+        $state = $mod->rstatus;
+        $badge = html_writer::span(
+            get_string('state_' . $state, 'local_aiquizremedial'),
+            'aiqr-status aiqr-status-' . $state);
+        $activityname = $mod->sourcetype === 'knowledgecheck' ? (string) $mod->kcname : (string) $mod->quizname;
 
-        if ($state === 'complete') {
-            $badgeclass = 'badge-success';
-            $badgelabel = get_string('state_complete', 'local_aiquizremedial');
-        } else if ($state === 'inprogress') {
-            $badgeclass = 'badge-warning';
-            $badgelabel = get_string('state_inprogress', 'local_aiquizremedial');
-        } else {
-            $badgeclass = 'badge-secondary';
-            $badgelabel = get_string('state_notstarted', 'local_aiquizremedial');
-        }
-
-        $sourcetype = $mod->sourcetype ?? 'quiz';
-        if ($sourcetype === 'knowledgecheck') {
-            $activityname = !empty($mod->kcname) ? format_string($mod->kcname) : '';
-        } else {
-            $activityname = !empty($mod->quizname) ? format_string($mod->quizname) : '';
-        }
-
-        $viewurl = new moodle_url('/local/aiquizremedial/view.php', ['moduleid' => $mod->moduleid]);
-        // Teacher viewing a student's module: pass userid so view.php can build the correct back link.
-        if ($canviewall && $userid > 0) {
-            $viewurl->param('userid', $userid);
-        } else if ($teachermode) {
-            $viewurl->param('userid', $mod->studentid);
-        }
-        // FIX-RL-FILTER-PERSIST (v1.2.44): propagate the active filter context so view.php
-        // can render the same filter panel inside the student review screen AND so the
-        // "Back to My Modules" link returns to the filtered list rather than the unfiltered
-        // overview. Without this the teacher loses filter state the moment they open a
-        // module and has to re-apply filters every time they return.
-        if ($teachermode || ($canviewall && $userid > 0)) {
-            if ($quizid > 0)       { $viewurl->param('filterquizid',  $quizid); }
-            if ($filteruserid > 0) { $viewurl->param('filteruserid',  $filteruserid); }
-        }
-
-        echo html_writer::start_div('card mb-3 aiqr-section-card aiqr-module-card');
+        echo html_writer::start_div('card mb-3 aiqr-section-card aiqr-module-card aiqr-module-' . $state);
         echo html_writer::start_div('card-body');
-
-        // In teacher mode show student name above the card title.
-        if ($teachermode) {
-            $studentname = format_string($mod->firstname . ' ' . $mod->lastname);
-            echo html_writer::tag('p',
-                get_string('student_label', 'local_aiquizremedial', $studentname),
-                ['class' => 'card-subtitle text-muted mb-1 small']
-            );
+        echo html_writer::tag(
+            'h5', get_string('fixmodule_title', 'local_aiquizremedial') . ' ' . $badge,
+            ['class' => 'card-title']);
+        if ($activityname !== '') {
+            echo html_writer::tag(
+                'p', get_string(
+                $mod->sourcetype === 'knowledgecheck' ? 'fromkc' : 'fromquiz',
+                'local_aiquizremedial', format_string($activityname)),
+                ['class' => 'card-text text-muted mb-1']);
         }
-
-        echo html_writer::tag('h5',
-            get_string('fixmodule_title', 'local_aiquizremedial') .
-            ' <span class="badge ' . $badgeclass . '">' . $badgelabel . '</span>',
-            ['class' => 'card-title']
-        );
-
-        if (!empty($activityname)) {
-            echo html_writer::tag('p', get_string('fromquiz', 'local_aiquizremedial', $activityname), ['class' => 'card-text text-muted']);
+        if (!$courseid) {
+            echo html_writer::tag('p', s(format_string($mod->coursename)), ['class' => 'card-text text-muted small mb-1']);
         }
-
-        // BUG-REM-QUESTION-PREVIEW (v1.2.35): show the original quiz question name so the
-        // teacher can see which question the student got wrong at a glance, instead of
-        // showing the explain_text preview which starts "The correct answer is..." and
-        // reveals the answer in the list without providing question context.
         if (!empty($mod->question_name)) {
-            echo html_writer::tag('p',
-                get_string('question_label', 'local_aiquizremedial', s(format_string($mod->question_name))),
-                ['class' => 'card-text text-muted small mb-1']
-            );
+            echo html_writer::tag(
+                'p', get_string('question_label', 'local_aiquizremedial', s(format_string($mod->question_name))),
+                ['class' => 'card-text text-muted small mb-2']);
         }
-
-        echo html_writer::tag('p',
-            get_string('credits_used_label', 'local_aiquizremedial', (int) $mod->credits_used),
-            ['class' => 'card-text text-muted small']
-        );
-
-        $btnlabel = ($canviewall && ($teachermode || $userid > 0))
-            ? get_string('viewmodule_teacher', 'local_aiquizremedial')
+        $label = $state === 'complete' ? get_string('reviewagain', 'local_aiquizremedial')
             : get_string('viewmodule', 'local_aiquizremedial');
-        echo html_writer::link($viewurl, $btnlabel, ['class' => 'btn btn-primary btn-sm']);
-
-        echo html_writer::end_div(); // card-body
-        echo html_writer::end_div(); // card
+        echo html_writer::link(
+            new moodle_url('/local/aiquizremedial/view.php', ['moduleid' => $mod->moduleid]), $label,
+            ['class' => 'btn btn-sm ' . ($state === 'complete' ? 'btn-outline-primary' : 'btn-primary')]);
+        echo html_writer::end_div();
+        echo html_writer::end_div();
     }
-
-    // BUG-REM-STATUS-FAILED (v1.2.35): render failed jobs with a distinct red badge.
-    // These are question-level jobs where AI content generation threw an exception
-    // (credit-order fix means no credits were consumed for these).
-    foreach ($failedjobs as $fj) {
-        $sourcetype = $fj->sourcetype ?? 'quiz';
-        $activityname = ($sourcetype === 'knowledgecheck')
-            ? (!empty($fj->kcname) ? format_string($fj->kcname) : '')
-            : (!empty($fj->quizname) ? format_string($fj->quizname) : '');
-
-        echo html_writer::start_div('card mb-3 aiqr-section-card aiqr-module-card border-danger');
-        echo html_writer::start_div('card-body');
-
-        $studentname = format_string($fj->firstname . ' ' . $fj->lastname);
-        echo html_writer::tag('p',
-            get_string('student_label', 'local_aiquizremedial', $studentname),
-            ['class' => 'card-subtitle text-muted mb-1 small']
-        );
-
-        echo html_writer::tag('h5',
-            get_string('fixmodule_title', 'local_aiquizremedial') .
-            ' <span class="badge badge-danger">' . get_string('state_failed', 'local_aiquizremedial') . '</span>',
-            ['class' => 'card-title']
-        );
-
-        if (!empty($activityname)) {
-            echo html_writer::tag('p', get_string('fromquiz', 'local_aiquizremedial', $activityname), ['class' => 'card-text text-muted']);
-        }
-
-        if (!empty($fj->question_name)) {
-            echo html_writer::tag('p',
-                get_string('question_label', 'local_aiquizremedial', s(format_string($fj->question_name))),
-                ['class' => 'card-text text-muted small mb-1']
-            );
-        }
-
-        echo html_writer::tag('p',
-            get_string('generation_failed_desc', 'local_aiquizremedial'),
-            ['class' => 'card-text text-danger small']
-        );
-        echo html_writer::tag('p',
-            get_string('credits_used_label', 'local_aiquizremedial', 0),
-            ['class' => 'card-text text-muted small']
-        );
-
-        echo html_writer::end_div(); // card-body
-        echo html_writer::end_div(); // card
-    }
-
     echo html_writer::end_div();
 }
 

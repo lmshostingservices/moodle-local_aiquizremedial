@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * local_aiquizremedial file.
+ * Part of the local_aiquizremedial plugin.
  *
  * @package    local_aiquizremedial
  * @copyright  2026 LMS-Labs
@@ -57,7 +57,7 @@ $string['voiceoverplayback_desc'] = 'Controls how the voiceover audio is trigger
 $string['voiceoverplayback_manual'] = 'Click to play — student presses play to start the voiceover';
 $string['voiceoverplayback_auto']   = 'Auto-play — voiceover starts automatically when the module opens';
 $string['enableimages'] = 'Enable explanatory images';
-$string['enableimages_desc'] = 'Generate AI images to accompany explanations. Uses additional credits per question.';
+$string['enableimages_desc'] = 'Generate an AI illustration for each revision module (OpenAI GPT Image 2 via LMS Labs, portrait format, no fallback model). Uses additional credits per question; the charge is made once with the module and never repeated if the image is retried. If an image fails the revision module is still created and the image is retried automatically when the failure is temporary. Questions that rely on a diagram or photo should give that image a description (alt text) — the image service only reads text.';
 $string['extra_languages'] = 'Additional content languages';
 $string['extra_languages_desc'] = 'Select additional languages to generate for each remediation module. English is always generated first. Each selected language translates the explanation text and generates a new voiceover in that language. Each additional language costs 5 credits per question. Students see a language picker next to the audio player to switch between available languages.';
 $string['lang_english'] = 'English';
@@ -163,4 +163,124 @@ $string['aiquizremedial:viewown'] = 'View own remedial learning modules';
 $string['aiquizremedial:viewall'] = 'View all students\' remedial learning modules';
 $string['aiquizremedial:manage'] = 'Manage remedial learning settings';
 
-$string['privacy:metadata'] = 'The local_aiquizremedial plugin does not store any personal data.';
+// Version 1.3.0 — learner visibility.
+$string['showonquizview'] = 'Show banner on quiz page';
+$string['showonquizview_desc'] = 'Show learners a banner on the quiz page (the page they return to after finishing an attempt) when they have revision modules for that quiz, or while modules are being prepared. Needed when quiz review is not available straight after the attempt.';
+$string['showoncoursepage'] = 'Show banner on course page';
+$string['showoncoursepage_desc'] = 'Show learners a reminder on the course page while they have unfinished revision modules in that course.';
+$string['includeunanswered'] = 'Create modules for unanswered questions';
+$string['includeunanswered_desc'] = 'When enabled, questions a learner left blank are treated as incorrect and get a revision module. Questions waiting for manual grading (e.g. essays) are always skipped.';
+$string['banner_preparing_heading'] = 'Preparing your revision modules';
+$string['banner_preparing_message'] = 'We are checking your answers and preparing personalised revision modules. This page will update automatically.';
+$string['banner_preparing_message_n'] = '{$a} revision module(s) are being prepared for you. This page will update automatically when they are ready.';
+$string['banner_more_preparing'] = '{$a} more are being prepared.';
+$string['learnernav'] = 'My revision modules';
+$string['reportnav'] = 'Remedial learning report';
+$string['learner_progress'] = 'You have completed {$a->complete} of {$a->ready} revision module(s).';
+$string['reviewagain'] = 'Review again';
+$string['filter_showall'] = 'Show all';
+$string['invalidkcid'] = 'The AI Knowledge Check activity for this job could not be found.';
+$string['viewremediallearnings'] = 'View Remedial Learnings';
+$string['noremedialforquiz'] = 'No remedial modules generated for this quiz yet.';
+
+// Version 1.3.0 — report.
+$string['reporttitle'] = 'Remedial learning report';
+$string['report_allcourses'] = 'View across all my courses';
+$string['filters'] = 'Filters';
+$string['filtersactive'] = '{$a} active';
+$string['filter_search'] = 'Search';
+$string['filter_search_placeholder'] = 'Name, email, ID number, course, quiz or question…';
+$string['filter_anycategory'] = 'Any category';
+$string['filter_subcats'] = 'Include sub-categories';
+$string['filter_andsubcats'] = '(+ sub-categories)';
+$string['filter_anycourse'] = 'All courses';
+$string['filter_anycohort'] = 'Any cohort';
+$string['filter_anygroup'] = 'Any group';
+$string['filter_teacher'] = 'Teacher';
+$string['filter_anyteacher'] = 'Any teacher';
+$string['filter_teachergroups'] = 'Only learners in the teacher\'s groups';
+$string['filter_anyactivity'] = 'Any quiz / activity';
+$string['filter_anystudent'] = 'Any student';
+$string['filter_anystatus'] = 'Any status';
+$string['filter_dates'] = 'Generated between';
+$string['filter_datefrom'] = 'From';
+$string['filter_dateto'] = 'To';
+$string['filter_perpage'] = 'Rows per page';
+$string['filter_typetosearch'] = 'Type to search…';
+$string['filter_noselection'] = 'No selection';
+$string['filter_remove'] = 'Remove this filter';
+$string['filter_clearall'] = 'Clear all';
+$string['filter_attempt'] = 'Attempt';
+$string['filter_bystudent'] = 'Show only this student';
+$string['state_generating'] = 'Being prepared';
+$string['col_student'] = 'Student';
+$string['col_activity'] = 'Quiz / activity';
+$string['col_question'] = 'Question';
+$string['col_tries'] = 'Quick-check tries';
+$string['col_created'] = 'Generated';
+$string['col_completed'] = 'Completed';
+$string['col_credits'] = 'Credits used';
+$string['col_error'] = 'Error';
+$string['col_courses'] = 'Courses';
+$string['col_modules'] = 'Modules';
+$string['col_outstanding'] = 'Outstanding';
+$string['col_notready'] = 'Not ready / failed';
+$string['col_rate'] = 'Completion';
+$string['col_lastactivity'] = 'Last activity';
+$string['stat_modules'] = 'Remedial modules';
+$string['stat_students'] = '{$a} student(s)';
+$string['stat_rate'] = 'Completion rate';
+$string['stat_rate_sub'] = '{$a->complete} of {$a->ready} ready modules';
+$string['view_modules'] = 'Modules';
+$string['view_students'] = 'Student summary';
+$string['resultcount'] = '{$a} result(s)';
+$string['noresults_filtered'] = 'No remedial modules match these filters.';
+$string['retry'] = 'Retry';
+$string['retryall'] = 'Retry all failed ({$a})';
+$string['retryqueued'] = '{$a} job(s) queued for generation. They will be processed on the next cron run.';
+
+// Privacy.
+$string['privacy:metadata:local_aiqr_job'] = 'Remedial generation jobs created when a learner answers quiz questions incorrectly.';
+$string['privacy:metadata:local_aiqr_job:userid'] = 'The learner the job was created for.';
+$string['privacy:metadata:local_aiqr_job:attemptid'] = 'The quiz attempt that triggered the job.';
+$string['privacy:metadata:local_aiqr_job:timecreated'] = 'When the job was created.';
+$string['privacy:metadata:local_aiqr_completion'] = 'The learner\'s progress through each revision module.';
+$string['privacy:metadata:local_aiqr_completion:userid'] = 'The learner.';
+$string['privacy:metadata:local_aiqr_completion:state'] = 'Completion state of the revision module.';
+$string['privacy:metadata:local_aiqr_completion:attempts_count'] = 'Number of quick-check answers submitted.';
+$string['privacy:metadata:local_aiqr_completion:completed_at'] = 'When the module was completed.';
+$string['privacy:metadata:aiservice'] = 'Question text and the learner\'s answer are sent to the AI service to generate the revision module. No name or email is sent; the Moodle user id is sent for credit accounting.';
+$string['privacy:metadata:aiservice:userid'] = 'Moodle user id (for credit accounting).';
+$string['privacy:metadata:aiservice:answer'] = 'The question and the learner\'s answer.';
+
+// Version 1.3.0 — independent sources.
+$string['filter_source'] = 'Source';
+$string['filter_anysource'] = 'Quizzes and Knowledge Checks';
+$string['source_quiz'] = 'Moodle quiz';
+$string['source_knowledgecheck'] = 'AI Knowledge Check';
+$string['fromkc'] = 'From Knowledge Check: {$a}';
+$string['sources'] = 'Apply remedial learning to';
+$string['sources_desc'] = 'Tick the activity types that should generate revision modules when a learner answers incorrectly. Tick none, one or both. Each works on its own: Moodle quizzes do not need AI Knowledge Check installed, and vice versa. Existing revision modules stay available to learners if you untick a type — only new ones stop being generated.';
+$string['source_notinstalled'] = '(not installed on this site)';
+
+// Version 1.4.0 — tutor lesson cards.
+$string['card_tempting'] = 'Why it seemed right';
+$string['card_principle'] = 'The key idea';
+$string['card_example'] = 'See it at work';
+$string['card_hook'] = 'Lock it in';
+$string['takeaway_label'] = 'Remember';
+$string['tutornote'] = 'Tutor note (teachers only):';
+$string['listen_label'] = 'Listen';
+$string['quickcheck_transfer'] = 'Same idea, new situation. Use what you just learned.';
+
+// Version 1.4.1 — explanation images.
+$string['image_open'] = 'Open image full size';
+$string['imagestatus_retry'] = 'Image not ready yet — it will be retried automatically.';
+$string['imagestatus_failed'] = 'Image could not be generated after several tries.';
+$string['imagestatus_rejected'] = 'Image request was rejected and will not be retried until the cause is fixed.';
+$string['imagestatus_contextonly'] = 'Image was generated from the explanation only — the original question could not be recovered for this older module.';
+$string['imagestatus_undescribed'] = 'The question contains {$a} image(s) with no description, so the illustration was based on the question text only.';
+$string['imagestatus_reason'] = 'Reason: {$a}';
+$string['imagestatus_provenance'] = 'Image: {$a->model} ({$a->mode})';
+$string['retryimage'] = 'Retry image';
+$string['retryimagequeued'] = 'Image queued for another try on the next cron run.';

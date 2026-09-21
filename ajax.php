@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * local_aiquizremedial file.
+ * Part of the local_aiquizremedial plugin.
  *
  * @package    local_aiquizremedial
  * @copyright  2026 LMS-Labs
@@ -28,7 +28,7 @@ require_once('../../config.php');
 require_once($CFG->dirroot . '/local/aiquizremedial/lib.php');
 
 $action  = required_param('action', PARAM_ALPHANUMEXT);
-$sesskey = required_param('sesskey', PARAM_RAW);
+$sesskey = required_param('sesskey', PARAM_ALPHANUM);
 
 confirm_sesskey($sesskey);
 $PAGE->set_context(context_system::instance());
@@ -179,6 +179,16 @@ switch ($action) {
             'attempts_count' => (int) $completion->attempts_count,
             'feedback'       => $fb,
         ]);
+        break;
+
+    case 'summary':
+        // Version 1.3.0: polled by the "being prepared" banner so it can refresh itself.
+        $courseid  = optional_param('courseid', 0, PARAM_INT);
+        $quizid    = optional_param('quizid', 0, PARAM_INT);
+        $attemptid = optional_param('attemptid', 0, PARAM_INT);
+        $kcid      = optional_param('kcid', 0, PARAM_INT);
+        $summary = \local_aiquizremedial\helper::learner_summary((int) $USER->id, $courseid, $quizid, $attemptid, $kcid);
+        echo json_encode(['success' => true] + (array) $summary);
         break;
 
     default:

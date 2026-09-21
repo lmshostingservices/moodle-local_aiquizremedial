@@ -1,6 +1,6 @@
 <?php
 /**
- * local_aiquizremedial file.
+ * Part of the local_aiquizremedial plugin.
  *
  * @package    local_aiquizremedial
  * @copyright  2026 LMS-Labs

@@ -173,3 +173,436 @@
     vertical-align: middle;
     margin-left: 8px;
 }
+
+/* ===================================================================
+ * v1.3.0 — learner banners, teacher button, remedial learning report.
+ * =================================================================== */
+
+/* Learner banners (quiz review, quiz page, course page). */
+.aiqr-banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    border: 2px solid;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin: 16px 0;
+}
+.aiqr-banner-pending { background: #fef3c7; border-color: #f59e0b; color: #92400e; }
+.aiqr-banner-preparing { background: #eff6ff; border-color: #3b82f6; color: #1e3a8a; }
+.aiqr-banner-complete { background: #d1fae5; border-color: #10b981; color: #065f46; }
+.aiqr-banner-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+}
+.aiqr-banner-pending .aiqr-banner-icon, .aiqr-banner-pending .aiqr-banner-btn { background: #d97706; }
+.aiqr-banner-preparing .aiqr-banner-icon, .aiqr-banner-preparing .aiqr-banner-btn { background: #2563eb; }
+.aiqr-banner-complete .aiqr-banner-icon, .aiqr-banner-complete .aiqr-banner-btn { background: #059669; }
+.aiqr-banner-body { flex: 1; min-width: 200px; }
+.aiqr-banner-heading { font-weight: 700; font-size: 15px; margin-bottom: 2px; }
+.aiqr-banner-message { font-size: 13px; }
+a.aiqr-banner-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+}
+a.aiqr-banner-btn:hover, a.aiqr-banner-btn:focus { color: #fff; text-decoration: none; filter: brightness(1.08); }
+.aiqr-spin { animation: aiqr-spin 1s linear infinite; }
+@keyframes aiqr-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .aiqr-spin { animation: none; } }
+
+/* Teacher button on quiz pages. */
+.aiqr-teacher-quiz-btn { margin: 12px 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+a.aiqr-teacher-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: #4f46e5;
+    color: #fff;
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+}
+a.aiqr-teacher-btn:hover, a.aiqr-teacher-btn:focus { color: #fff; text-decoration: none; background: #4338ca; }
+.aiqr-teacher-btn-badge {
+    background: rgba(255, 255, 255, .25);
+    border-radius: 10px;
+    padding: 1px 8px;
+    font-size: 12px;
+    font-weight: 700;
+}
+.aiqr-muted { color: #6b7280; font-size: 13px; }
+
+/* Status badges (report + learner cards). */
+.aiqr-status {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.6;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+.aiqr-status-complete { background: #d1fae5; color: #065f46; }
+.aiqr-status-inprogress { background: #fef3c7; color: #92400e; }
+.aiqr-status-notstarted { background: #e5e7eb; color: #374151; }
+.aiqr-status-generating { background: #dbeafe; color: #1e40af; }
+.aiqr-status-failed { background: #fee2e2; color: #991b1b; }
+.aiqr-error { color: #991b1b; margin-top: 4px; max-width: 280px; }
+
+/* Report filters. */
+.aiqr-filters > summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+}
+.aiqr-filters > summary::-webkit-details-marker { display: none; }
+.aiqr-filters > summary::before { content: '▸'; transition: transform .15s; display: inline-block; }
+.aiqr-filters[open] > summary::before { transform: rotate(90deg); }
+.aiqr-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px 18px;
+}
+.aiqr-filter-wide { grid-column: 1 / -1; }
+.aiqr-filter-field { min-width: 0; display: flex; flex-direction: column; }
+.aiqr-filter-field > .aiqr-filter-check { order: 99; }
+.aiqr-filter-field select, .aiqr-filter-field input[type=search] { width: 100%; max-width: 100%; }
+.aiqr-filter-field .form-autocomplete-selection { margin-bottom: 4px; }
+.aiqr-filter-label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #374151; }
+.aiqr-filter-check { margin-top: 6px; font-size: 13px; }
+.aiqr-filter-daterow { display: flex; align-items: center; gap: 6px; }
+.aiqr-filter-daterow input { min-width: 0; }
+.aiqr-filter-dash { color: #6b7280; }
+.aiqr-filter-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.aiqr-pill { border-radius: 999px; padding: 1px 10px; font-size: 12px; font-weight: 600; }
+.aiqr-pill-active { background: #4f46e5; color: #fff; }
+
+/* Active filter chips. */
+.aiqr-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 16px; }
+a.aiqr-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #eef2ff;
+    color: #3730a3;
+    border: 1px solid #c7d2fe;
+    border-radius: 999px;
+    padding: 3px 6px 3px 12px;
+    font-size: 13px;
+    text-decoration: none;
+}
+a.aiqr-chip:hover, a.aiqr-chip:focus { background: #e0e7ff; text-decoration: none; }
+.aiqr-chip-label { font-weight: 600; }
+.aiqr-chip-x {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #c7d2fe;
+    font-weight: 700;
+    line-height: 1;
+    margin-left: 2px;
+}
+.aiqr-chip-clear { font-size: 13px; margin-left: 4px; }
+
+/* Summary cards. */
+.aiqr-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px;
+    margin-bottom: 18px;
+}
+.aiqr-stat {
+    display: block;
+    border: 1px solid #e5e7eb;
+    border-left: 4px solid #9ca3af;
+    border-radius: 8px;
+    padding: 10px 14px;
+    background: #fff;
+    color: inherit;
+    text-decoration: none;
+}
+a.aiqr-stat:hover, a.aiqr-stat:focus { box-shadow: 0 2px 8px rgba(0, 0, 0, .08); text-decoration: none; color: inherit; }
+.aiqr-stat-value { font-size: 22px; font-weight: 700; line-height: 1.2; }
+.aiqr-stat-label { font-size: 12px; color: #4b5563; text-transform: uppercase; letter-spacing: .03em; }
+.aiqr-stat-sub { font-size: 12px; color: #6b7280; }
+.aiqr-stat-total { border-left-color: #4f46e5; }
+.aiqr-stat-rate { border-left-color: #0ea5e9; }
+.aiqr-stat-complete { border-left-color: #10b981; }
+.aiqr-stat-inprogress { border-left-color: #f59e0b; }
+.aiqr-stat-notstarted { border-left-color: #9ca3af; }
+.aiqr-stat-generating { border-left-color: #3b82f6; }
+.aiqr-stat-failed { border-left-color: #ef4444; }
+.aiqr-stat-credits { border-left-color: #8b5cf6; }
+
+/* Toolbar + table. */
+.aiqr-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 8px 0 10px;
+}
+.aiqr-toolbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.aiqr-toolbar-right .dataformatselector { margin: 0; }
+.aiqr-resultcount { font-weight: 600; color: #374151; }
+.aiqr-report-table th { white-space: nowrap; }
+.aiqr-report-table td { vertical-align: middle; }
+.aiqr-report-table td form { margin: 0 0 0 4px; }
+a.aiqr-sort { color: inherit; text-decoration: none; }
+a.aiqr-sort:hover { text-decoration: underline; }
+.aiqr-sort-active { color: #4f46e5 !important; }
+.aiqr-student-name { font-weight: 600; }
+
+/* Progress bars. */
+.aiqr-bar {
+    display: inline-block;
+    width: 90px;
+    height: 8px;
+    background: #e5e7eb;
+    border-radius: 4px;
+    overflow: hidden;
+    vertical-align: middle;
+    margin-right: 6px;
+}
+.aiqr-bar-lg { display: block; width: 100%; height: 10px; margin: 6px 0 0; }
+.aiqr-bar-fill { height: 100%; background: #10b981; }
+.aiqr-bar-label { font-size: 13px; }
+
+/* Learner module list. */
+.aiqr-learner-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+.aiqr-learner-filters select { width: auto; }
+.aiqr-learner-progress { margin-bottom: 16px; max-width: 520px; }
+.aiqr-module-complete { opacity: .85; }
+
+/* ===================================================================
+ * v1.4.0 — Tutor lesson cards (2x2).
+ * =================================================================== */
+.aiqr-lesson {
+    --aiqr-ink: #1f2937;
+    --aiqr-muted: #4b5563;
+    --aiqr-line: #e5e7eb;
+    margin: 0 0 1.5rem;
+}
+.aiqr-media-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    background: #f8fafc;
+    border: 1px solid var(--aiqr-line);
+    border-radius: 14px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+}
+.aiqr-media-label { font-weight: 700; font-size: 14px; color: var(--aiqr-ink); }
+.aiqr-media-bar .aiqr-audio-player { flex: 1 1 260px; min-width: 0; max-width: 460px; height: 40px; }
+.aiqr-media-bar .aiqr-lang-select { width: auto; min-width: 170px; }
+
+/* Answer strip — shown first, plain and neutral. */
+.aiqr-answer-strip {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    color: #065f46;
+    border-radius: 14px;
+    padding: 12px 16px;
+    margin-bottom: 18px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.5;
+}
+.aiqr-answer-strip-icon { color: #059669; flex-shrink: 0; margin-top: 1px; }
+
+/* Grid. */
+.aiqr-lesson-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+.aiqr-lesson-grid-single { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 767.98px) {
+    .aiqr-lesson-grid { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+}
+
+/* Card. */
+.aiqr-lesson-card {
+    --aiqr-accent: #6366f1;
+    --aiqr-tint: #eef2ff;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border: 1px solid var(--aiqr-line);
+    border-radius: 18px;
+    padding: 20px 22px 22px;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 4px 12px rgba(16, 24, 40, .06);
+    overflow: hidden;
+    transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+}
+.aiqr-lesson-card::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 5px;
+    background: linear-gradient(90deg, var(--aiqr-accent), color-mix(in srgb, var(--aiqr-accent) 55%, #fff));
+}
+.aiqr-lesson-card:hover,
+.aiqr-lesson-card:focus-within,
+.aiqr-lesson-card:focus-visible {
+    transform: translateY(-4px);
+    border-color: color-mix(in srgb, var(--aiqr-accent) 35%, var(--aiqr-line));
+    box-shadow: 0 12px 28px -6px color-mix(in srgb, var(--aiqr-accent) 30%, transparent), 0 4px 10px rgba(16, 24, 40, .08);
+}
+.aiqr-lesson-card:focus-visible { outline: 3px solid color-mix(in srgb, var(--aiqr-accent) 55%, #fff); outline-offset: 2px; }
+.aiqr-lesson-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.aiqr-lesson-icon {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: var(--aiqr-tint);
+    color: var(--aiqr-accent);
+    transition: transform .22s ease;
+}
+.aiqr-lesson-card:hover .aiqr-lesson-icon { transform: rotate(-6deg) scale(1.06); }
+.aiqr-lesson-heading { font-size: 1.15rem; font-weight: 700; color: var(--aiqr-ink); margin: 0; flex: 1; line-height: 1.3; }
+.aiqr-lesson-step {
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--aiqr-accent);
+    opacity: .14;
+}
+.aiqr-lesson-body { font-size: 1.02rem; line-height: 1.7; color: var(--aiqr-ink); margin: 0; }
+.aiqr-lesson-image {
+    display: block;
+    width: 100%;
+    max-height: 240px;
+    object-fit: cover;
+    border-radius: 12px;
+    margin-top: 14px;
+    border: 1px solid var(--aiqr-line);
+}
+
+.aiqr-lesson-tempting { --aiqr-accent: #d97706; --aiqr-tint: #fef3c7; }
+.aiqr-lesson-principle { --aiqr-accent: #4f46e5; --aiqr-tint: #e0e7ff; }
+.aiqr-lesson-example { --aiqr-accent: #0d9488; --aiqr-tint: #ccfbf1; }
+.aiqr-lesson-hook { --aiqr-accent: #db2777; --aiqr-tint: #fce7f3; }
+.aiqr-lesson-hook .aiqr-lesson-body { font-size: 1.08rem; font-weight: 600; }
+
+/* Takeaway — the hook in one line, shown last. */
+.aiqr-takeaway {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    margin-top: 18px;
+    padding: 16px 20px;
+    border-radius: 16px;
+    color: #fff;
+    background: linear-gradient(120deg, #4f46e5, #7c3aed 55%, #db2777);
+    box-shadow: 0 10px 24px -8px rgba(79, 70, 229, .55);
+}
+.aiqr-takeaway-label {
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    font-size: 12px;
+    font-weight: 800;
+    background: rgba(255, 255, 255, .2);
+    border-radius: 999px;
+    padding: 3px 10px;
+}
+.aiqr-takeaway-text { font-size: 1.12rem; font-weight: 700; line-height: 1.45; flex: 1; min-width: 200px; }
+
+.aiqr-tutor-note {
+    margin-top: 14px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: #f1f5f9;
+    border: 1px dashed #94a3b8;
+    color: #334155;
+    font-size: .92rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .aiqr-lesson-card, .aiqr-lesson-icon { transition: none; }
+    .aiqr-lesson-card:hover, .aiqr-lesson-card:focus-within { transform: none; }
+    .aiqr-lesson-card:hover .aiqr-lesson-icon { transform: none; }
+}
+
+/* Lock it in: centre the hook and give it a quote mark so a short card never looks empty. */
+.aiqr-lesson-hook .aiqr-lesson-body {
+    position: relative;
+    margin: auto 0;
+    padding: 6px 4px 4px 34px;
+}
+.aiqr-lesson-hook .aiqr-lesson-body::before {
+    content: '\201C';
+    position: absolute;
+    left: 0;
+    top: -6px;
+    font-size: 3.6rem;
+    line-height: 1;
+    font-family: Georgia, serif;
+    color: var(--aiqr-accent);
+    opacity: .35;
+}
+/* v1.4.1: portrait (864x1536) images are shown whole, never cropped. */
+.aiqr-lesson-figure {
+    margin: 14px 0 0;
+    display: flex;
+    justify-content: center;
+    background: color-mix(in srgb, var(--aiqr-accent) 8%, #f8fafc);
+    border: 1px solid var(--aiqr-line);
+    border-radius: 12px;
+    padding: 10px;
+}
+.aiqr-lesson-figure a { display: block; line-height: 0; }
+.aiqr-lesson-card .aiqr-lesson-image {
+    width: auto;
+    max-width: 100%;
+    max-height: 360px;
+    object-fit: contain;
+    margin: 0;
+    border: 0;
+    border-radius: 8px;
+}
+@media (max-width: 767.98px) {
+    .aiqr-lesson-card .aiqr-lesson-image { max-height: 70vh; }
+}
+.aiqr-image-status { margin-top: 10px; font-size: .88rem; color: #92400e; background: #fffbeb;
+    border: 1px solid #fde68a; border-radius: 10px; padding: 8px 12px; }
+
+/* Quick check matches the lesson styling. */
+.aiqr-section-card { border-radius: 18px; }
+.aiqr-quickcheck-sub { color: #4b5563; font-size: .95rem; margin: -4px 0 12px; }

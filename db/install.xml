@@ -17,6 +17,7 @@
         <FIELD NAME="kcid" TYPE="int" LENGTH="10" NOTNULL="false"/>
         <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="pending"/>
         <FIELD NAME="errormsg" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="retries" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" COMMENT="Number of generation attempts that have failed for this job"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
       </FIELDS>
@@ -25,6 +26,8 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="idx_user_attempt" UNIQUE="false" FIELDS="userid,attemptid"/>
+        <INDEX NAME="idx_course_user" UNIQUE="false" FIELDS="courseid,userid"/>
+        <INDEX NAME="idx_attempt_question" UNIQUE="false" FIELDS="attemptid,questionid,sourcetype"/>
         <INDEX NAME="idx_status" UNIQUE="false" FIELDS="status"/>
         <INDEX NAME="idx_quiz_user" UNIQUE="false" FIELDS="quizid,userid"/>
       </INDEXES>
@@ -40,6 +43,13 @@
         <FIELD NAME="check_question_json" TYPE="text" NOTNULL="true"/>
         <FIELD NAME="feedback_json" TYPE="text" NOTNULL="true"/>
         <FIELD NAME="translations_json" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="lesson_json" TYPE="text" NOTNULL="false" COMMENT="Structured 4-card tutor lesson (v1.4.0)"/>
+        <FIELD NAME="question_json" TYPE="text" NOTNULL="false" COMMENT="Sanitised snapshot of the original question (v1.4.1)"/>
+        <FIELD NAME="image_status" TYPE="char" LENGTH="20" NOTNULL="false" COMMENT="ready, retry, failed, rejected, disabled; NULL = pre-1.4.1"/>
+        <FIELD NAME="image_error" TYPE="text" NOTNULL="false" COMMENT="Sanitised reason for the last image failure"/>
+        <FIELD NAME="image_attempts" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="image_nextattempt" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="image_meta" TYPE="text" NOTNULL="false" COMMENT="Image provenance returned by the service"/>
         <FIELD NAME="credits_used" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>

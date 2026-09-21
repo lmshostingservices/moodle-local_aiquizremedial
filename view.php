@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * local_aiquizremedial file.
+ * Part of the local_aiquizremedial plugin.
  *
  * @package    local_aiquizremedial
  * @copyright  2026 LMS-Labs
@@ -31,6 +31,8 @@ $userid   = optional_param('userid',   0, PARAM_INT); // Passed when teacher ope
 // Modules" returns the teacher to the filtered list instead of the unfiltered overview.
 $filterquizid = optional_param('filterquizid', 0, PARAM_INT);
 $filteruserid = optional_param('filteruserid', 0, PARAM_INT);
+// Version 1.3.0: the teacher report passes its full filter state as returnurl so "Back" restores it.
+$returnurl = optional_param('returnurl', '', PARAM_LOCALURL);
 
 global $DB, $USER, $OUTPUT, $PAGE;
 
@@ -83,9 +85,10 @@ $sourcetype = $job->sourcetype ?? 'quiz';
 
 $activityname = '';
 $originalQuestionText = '';
+$questionTextFormatted = false;
 $studentResponseText  = '';
 
-if ($sourcetype === 'knowledgecheck') {
+if ($sourcetype === 'knowledgecheck' && \local_aiquizremedial\helper::kc_installed()) {
     // Load activity name from the KC table.
     $kc = $DB->get_record('aiknowledgecheck', ['id' => $job->kcid], 'name');
     if ($kc) {
@@ -105,12 +108,12 @@ if ($sourcetype === 'knowledgecheck') {
                 $answers = json_decode($kcattempt->answers, true) ?: [];
                 $ans = $answers[(string) $job->questionid] ?? $answers[$job->questionid] ?? null;
                 if ($ans !== null) {
-                    // answer is stored 0-based (JS sends answerIndex 0-3).
+                    // Answer is stored 0-based (JS sends answerIndex 0-3).
                     // KC DB columns are 1-indexed: answer1..answer4.
                     // Old guard "$studentIndex1 >= 1" wrongly skipped option 0 and
                     // had an off-by-one for all other options.
                     $studentIndex0 = (int) ($ans['answer'] ?? -1);
-                    if ($studentIndex0 >= 0 && $studentIndex0 <= 3) {
+                    if ($studentIndex0 >= 0 && $studentIndex0 <= 4) {
                         $studentResponseText = (string) ($kcquestion->{'answer' . ($studentIndex0 + 1)} ?? '');
                     }
                 }
@@ -119,7 +122,7 @@ if ($sourcetype === 'knowledgecheck') {
             // Silently continue if KC data is unavailable.
         }
     }
-} else {
+} else if ($sourcetype !== 'knowledgecheck') {
     // Standard Moodle quiz.
     $quiz = $DB->get_record('quiz', ['id' => $job->quizid], 'name');
     if ($quiz) {
@@ -136,7 +139,14 @@ if ($sourcetype === 'knowledgecheck') {
                 foreach ($quba->get_slots() as $slot) {
                     $qa = $quba->get_question_attempt($slot);
                     if ((int) $qa->get_question()->id === (int) $job->questionid) {
-                        $originalQuestionText = $qa->get_question()->questiontext ?? '';
+                        // Version 1.4.1: format through the question engine so @@PLUGINFILE@@ image
+                        // links in the question resolve (raw format_text() left them broken).
+                        try {
+                            $originalQuestionText = $qa->get_question()->format_questiontext($qa);
+                            $questionTextFormatted = true;
+                        } catch (\Throwable $e) {
+                            $originalQuestionText = $qa->get_question()->questiontext ?? '';
+                        }
                         $studentResponseText  = $qa->get_response_summary();
                         break;
                     }
@@ -148,7 +158,11 @@ if ($sourcetype === 'knowledgecheck') {
     }
 }
 
-$PAGE->set_url(new moodle_url('/local/aiquizremedial/view.php', ['moduleid' => $moduleid]));
+$pageurlparams = ['moduleid' => $moduleid];
+if ($teacherview) {
+    $pageurlparams['userid'] = $userid;
+}
+$PAGE->set_url(new moodle_url('/local/aiquizremedial/view.php', $pageurlparams));
 $PAGE->set_context($context);
 $PAGE->set_title(get_string('fixmodule_title', 'local_aiquizremedial'));
 $PAGE->set_heading(get_string('fixmodule_title', 'local_aiquizremedial'));
@@ -174,11 +188,14 @@ if ($filterquizid > 0 || $filteruserid > 0) {
     $backparams['attemptid'] = $job->attemptid;
 }
 $backurl = new moodle_url('/local/aiquizremedial/index.php', $backparams);
+if ($returnurl !== '' && has_capability('local/aiquizremedial:viewall', $context)) {
+    $backurl = new moodle_url($returnurl);
+}
 echo html_writer::link($backurl, get_string('backtomymodules', 'local_aiquizremedial'), ['class' => 'btn btn-secondary btn-sm mb-3 mr-2']);
 
 // Back to Quiz / Activity button.
 $activityurl = null;
-if ($sourcetype === 'knowledgecheck' && !empty($job->kcid)) {
+if ($sourcetype === 'knowledgecheck' && !empty($job->kcid) && \local_aiquizremedial\helper::kc_installed()) {
     try {
         $kccmrecord = $DB->get_record_sql(
             "SELECT cm.id FROM {course_modules} cm
@@ -206,100 +223,10 @@ if ($activityurl) {
 echo html_writer::tag('h2', get_string('fixmodule_heading', 'local_aiquizremedial'));
 
 if (!empty($activityname)) {
-    echo html_writer::tag('p', get_string('fromquiz', 'local_aiquizremedial', $activityname), ['class' => 'text-muted']);
-}
-
-// FIX-RL-FILTER-PERSIST (v1.2.44): inline filter panel rendered ONLY when a teacher is
-// reviewing a student's module from a course context. Mirrors the panel on index.php so
-// the teacher can adjust filters or jump directly to another student's module without
-// returning to the overview, applying filters, and clicking back in. The form posts to
-// index.php so submitting takes the teacher straight to the filtered list.
-if ($teacherview && (int) $job->courseid > 0) {
-    $courseid = (int) $job->courseid;
-
-    // Distinct quizzes that have ready remedial modules in this course.
-    $quizsql = "SELECT DISTINCT q.id, q.name
-                  FROM {quiz} q
-                  JOIN {local_aiqr_job} j ON j.quizid = q.id
-                  JOIN {local_aiqr_module} m ON m.jobid = j.id
-                 WHERE j.status = 'ready' AND j.courseid = :courseid
-                 ORDER BY q.name";
-    $availablequizzes = $DB->get_records_sql($quizsql, ['courseid' => $courseid]);
-
-    // Distinct students with ready remedial modules (limited to the chosen quiz when set).
-    $studentsql = "SELECT DISTINCT u.id, u.firstname, u.lastname
-                     FROM {user} u
-                     JOIN {local_aiqr_job} j ON j.userid = u.id
-                     JOIN {local_aiqr_module} m ON m.jobid = j.id
-                    WHERE j.status = 'ready' AND j.courseid = :courseid";
-    $studentparams = ['courseid' => $courseid];
-    if ($filterquizid > 0) {
-        $studentsql .= " AND j.quizid = :quizid";
-        $studentparams['quizid'] = $filterquizid;
-    }
-    $studentsql .= " ORDER BY u.lastname, u.firstname";
-    $availablestudents = $DB->get_records_sql($studentsql, $studentparams);
-
-    $formaction = new moodle_url('/local/aiquizremedial/index.php');
-
-    echo html_writer::start_div('card mb-3 aiqr-filter-panel');
-    echo html_writer::start_div('card-body py-2');
-    echo html_writer::tag('h6',
-        get_string('teacherviewheading', 'local_aiquizremedial'),
-        ['class' => 'card-subtitle text-muted small mb-2']
-    );
-
-    echo html_writer::start_tag('form', [
-        'method' => 'get',
-        'action' => $formaction->out(false),
-        'class'  => 'form-inline d-flex flex-wrap align-items-center gap-2 mb-0',
-    ]);
-    echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'courseid', 'value' => $courseid]);
-
-    // Quiz filter.
-    echo html_writer::start_div('form-group mr-3 mb-2');
-    echo html_writer::tag('label',
-        get_string('filter_by_quiz', 'local_aiquizremedial'),
-        ['for' => 'aiqr-filter-quiz', 'class' => 'mr-2 font-weight-bold']
-    );
-    $quizoptions = [0 => get_string('filter_all_quizzes', 'local_aiquizremedial')];
-    foreach ($availablequizzes as $q) {
-        $quizoptions[$q->id] = format_string($q->name);
-    }
-    echo html_writer::select($quizoptions, 'quizid', $filterquizid, false,
-        ['id' => 'aiqr-filter-quiz', 'class' => 'custom-select mr-2']);
-    echo html_writer::end_div();
-
-    // Student filter.
-    echo html_writer::start_div('form-group mr-3 mb-2');
-    echo html_writer::tag('label',
-        get_string('filter_by_student', 'local_aiquizremedial'),
-        ['for' => 'aiqr-filter-student', 'class' => 'mr-2 font-weight-bold']
-    );
-    $studentoptions = [0 => get_string('filter_all_students', 'local_aiquizremedial')];
-    foreach ($availablestudents as $s) {
-        $studentoptions[$s->id] = format_string($s->lastname . ', ' . $s->firstname);
-    }
-    echo html_writer::select($studentoptions, 'filteruserid', $filteruserid, false,
-        ['id' => 'aiqr-filter-student', 'class' => 'custom-select mr-2']);
-    echo html_writer::end_div();
-
-    echo html_writer::tag('button',
-        get_string('filter_apply', 'local_aiquizremedial'),
-        ['type' => 'submit', 'class' => 'btn btn-secondary mb-2']
-    );
-
-    if ($filterquizid > 0 || $filteruserid > 0) {
-        $reseturl = new moodle_url('/local/aiquizremedial/index.php', ['courseid' => $courseid]);
-        echo html_writer::link($reseturl,
-            get_string('filter_reset', 'local_aiquizremedial'),
-            ['class' => 'btn btn-outline-secondary mb-2 ml-2']
-        );
-    }
-
-    echo html_writer::end_tag('form');
-    echo html_writer::end_div(); // card-body
-    echo html_writer::end_div(); // card
+    echo html_writer::tag(
+        'p', get_string(
+        $sourcetype === 'knowledgecheck' ? 'fromkc' : 'fromquiz', 'local_aiquizremedial',
+        $activityname), ['class' => 'text-muted']);
 }
 
 // Replace [[N]] placeholders (Select Missing Words question type) with a visible blank
@@ -313,13 +240,15 @@ if (!empty($originalQuestionText) || !empty($studentResponseText)) {
     echo html_writer::tag('h4', get_string('youranswer_heading', 'local_aiquizremedial'));
     if (!empty($originalQuestionText)) {
         echo html_writer::div(
-            format_text($originalQuestionText, FORMAT_HTML),
+            $questionTextFormatted ? $originalQuestionText
+                : format_text(str_replace('@@PLUGINFILE@@/', '', $originalQuestionText), FORMAT_HTML),
             'aiqr-original-question'
         );
     }
     if (!empty($studentResponseText)) {
         echo html_writer::start_div('aiqr-student-response');
-        echo html_writer::tag('span',
+        echo html_writer::tag(
+            'span',
             get_string('youselected_label', 'local_aiquizremedial'),
             ['class' => 'aiqr-student-response-label']
         );
@@ -330,211 +259,127 @@ if (!empty($originalQuestionText) || !empty($studentResponseText)) {
     echo html_writer::end_div();
 }
 
-// Section 1: Explanation.
-echo html_writer::start_div('card mb-3 aiqr-section-card');
-echo html_writer::start_div('card-body');
-echo html_writer::tag('h4', get_string('section_explain', 'local_aiquizremedial'));
-
-// Strip any stale prefixes that may exist in older DB records.
-$displayExplain = $module->explain_text ?? '';
-$displayExplain = preg_replace('/^Here is what you need to know\.\s*/iu', '', $displayExplain);
-$displayExplain = preg_replace('/^Listen\s*&\s*Learn\s*:?\s*\n?/iu', '', $displayExplain);
-$displayExplain = trim($displayExplain);
-
-// Split out "Pro Tip:" section so it can be styled separately.
-// FIX-PROTIP-REGEX (v1.2.43): Earlier fix required `\n+` (one or more literal newlines)
-// before "Pro Tip:". When the AI returned the marker with only a sentence-ending period
-// and a single space (no newline) the regex did not match, so "Pro Tip:" rendered as
-// plain inline text inside the main paragraph. New regex splits on the literal "Pro Tip:"
-// marker regardless of preceding whitespace — newlines, spaces, or punctuation all work
-// as boundaries. Case-insensitive to handle "Pro tip:" / "PRO TIP:" variants too.
-$proTipText = '';
-if (preg_match('/^(.*?)[\s\.]*\bPro\s*Tip\s*:\s*(.+)$/sui', $displayExplain, $tipMatch)) {
-    $displayExplain = trim($tipMatch[1]);
-    $proTipText     = trim($tipMatch[2]);
-}
-
-// FIX-EXPLAIN-FULLSTOP (v1.2.53): Ensure the explanation paragraph ends with a
-// full stop. The AI occasionally omits the terminal period, leaving an abrupt
-// transition before the Pro Tip block or the image.
-if (!empty($displayExplain) && !preg_match('/[.?!]\s*$/u', $displayExplain)) {
-    $displayExplain .= '.';
-}
-
-echo html_writer::div(nl2br(s($displayExplain)), 'aiqr-explain-text');
-if (!empty($proTipText)) {
-    echo html_writer::div(
-        html_writer::tag('strong', 'Pro Tip: ') . s($proTipText),
-        'aiqr-pro-tip mt-2'
-    );
-}
-
-if (!empty($module->explain_image_url)) {
-    echo html_writer::empty_tag('img', [
-        'src'   => $module->explain_image_url,
-        'alt'   => get_string('explain_image_alt', 'local_aiquizremedial'),
-        'class' => 'img-fluid aiqr-explain-image',
-    ]);
-}
-
-// Language-aware audio player.
-$translationsData = [];
-if (!empty($module->translations_json)) {
-    $translationsData = json_decode($module->translations_json, true) ?: [];
-}
-
-$hasAudio       = !empty($module->explain_audio_url);
+// Section 1: Tutor lesson (v1.4.0) — 2x2 cards. Older modules render the same card style
+// from explain_text. Each language is rendered server-side as its own block and the language
+// picker simply shows/hides blocks (the old JS text-rewriting switcher is gone).
+$lessondata = !empty($module->lesson_json)
+    ? \local_aiquizremedial\lesson::normalise(json_decode($module->lesson_json, true))
+    : null;
+$translationsData = !empty($module->translations_json) ? (json_decode($module->translations_json, true) ?: []) : [];
+$imageurl = !empty($module->explain_image_url) ? $module->explain_image_url : null;
+$hasAudio = !empty($module->explain_audio_url);
 $hasTranslations = !empty($translationsData);
 
-// FIX-RL-VOICEOVER-PLAYBACK: Read the playback mode setting. Default to 'manual'
-// so existing sites that have never set the option behave as before.
+// FIX-RL-VOICEOVER-PLAYBACK: default 'manual'; teachers never auto-play.
 $voiceoverplayback = get_config('local_aiquizremedial', 'voiceoverplayback') ?: 'manual';
 $autoplayEnabled   = !$teacherview && ($voiceoverplayback === 'auto');
 
+echo html_writer::start_tag('div', ['class' => 'aiqr-lesson', 'id' => 'aiqr-lesson']);
+
 if ($hasAudio || $hasTranslations) {
-    $langNameMap = [
-        'fr' => 'Fran\u00e7ais (French)',
-        'es' => 'Espa\u00f1ol (Spanish)',
-        'zh' => '\u4e2d\u6587 (Chinese)',
-        'ar' => '\u0627\u0644\u0639\u0631\u0628\u064a\u0629 (Arabic)',
-        'pt' => 'Portugu\u00eas (Portuguese)',
-        'de' => 'Deutsch (German)',
-        'ja' => '\u65e5\u672c\u8a9e (Japanese)',
-        'ko' => '\ud55c\uad6d\uc5b4 (Korean)',
-        'vi' => 'Ti\u1ebfng Vi\u1ec7t (Vietnamese)',
-        'hi' => '\u0939\u093f\u0928\u094d\u0926\u0940 (Hindi)',
-        'id' => 'Bahasa Indonesia',
-        'it' => 'Italiano (Italian)',
-    ];
-    // Decode the JSON unicode escapes into actual UTF-8 strings.
-    foreach ($langNameMap as $k => $v) {
-        $langNameMap[$k] = json_decode('"' . $v . '"') ?: $v;
-    }
-
-    echo html_writer::start_div('aiqr-lang-controls d-flex align-items-center flex-wrap gap-2 mt-2');
-
+    echo html_writer::start_div('aiqr-media-bar');
     if ($hasAudio) {
+        echo html_writer::span(get_string('listen_label', 'local_aiquizremedial'), 'aiqr-media-label');
         $audioAttrs = [
             'controls' => 'controls',
             'src'      => $module->explain_audio_url,
-            'class'    => 'aiqr-audio-player flex-shrink-0',
+            'class'    => 'aiqr-audio-player',
             'id'       => 'aiqr-audio-main',
+            'preload'  => 'metadata',
         ];
         if ($autoplayEnabled) {
-            // autoplay is blocked by most browsers unless the page was initiated
-            // by user interaction. Remedial pages are only reached via a student
-            // click (from quiz review banner or module list), so autoplay fires
-            // reliably. The JS fallback below handles edge cases.
             $audioAttrs['autoplay'] = 'autoplay';
         }
         echo html_writer::tag('audio', '', $audioAttrs);
     }
-
     if ($hasTranslations) {
-        $selectOptions = html_writer::tag('option', get_string('lang_english', 'local_aiquizremedial'), ['value' => 'en', 'selected' => 'selected']);
-        foreach ($translationsData as $code => $tdata) {
-            $label = json_decode('"' . ($langNameMap[$code] ?? strtoupper($code)) . '"');
-            $selectOptions .= html_writer::tag('option', $label, ['value' => $code]);
+        $langoptions = ['en' => get_string('lang_english', 'local_aiquizremedial')];
+        foreach (array_keys($translationsData) as $code) {
+            $langoptions[$code] = get_string_manager()->string_exists('lang_' . $code, 'local_aiquizremedial')
+                ? get_string('lang_' . $code, 'local_aiquizremedial') : strtoupper($code);
         }
-        echo html_writer::tag('select', $selectOptions, [
-            'class'       => 'form-select form-select-sm aiqr-lang-select',
-            'id'          => 'aiqr-lang-select',
-            'style'       => 'width:auto;min-width:160px',
-            'title'       => get_string('choose_language', 'local_aiquizremedial'),
-            'aria-label'  => get_string('choose_language', 'local_aiquizremedial'),
+        echo html_writer::select($langoptions, 'aiqrlang', 'en', false, [
+            'id' => 'aiqr-lang-select', 'class' => 'form-select custom-select aiqr-lang-select',
+            'aria-label' => get_string('choose_language', 'local_aiquizremedial'),
         ]);
-
-        // Embed data and switcher script.
-        // FIX-PROTIP-JS: Original setLang() dumped the full explain_text (including "Pro Tip:"
-        // as plain text) into .aiqr-explain-text when switching languages — the Pro Tip
-        // splitting logic was missing from the JS switcher. Fix: setLang() now mirrors the
-        // PHP logic — it extracts "Pro Tip:" from the raw text and updates .aiqr-pro-tip
-        // with the bold-styled Pro Tip, or hides the div if none is present. Also stores
-        // the English Pro Tip text (aiqrEnProTip) so switching back to English restores it.
-        $jsTranslations = json_encode($translationsData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
-        $jsEnText       = json_encode($displayExplain,   JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
-        $jsEnProTip     = json_encode($proTipText,       JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
-        $jsEnAudio      = json_encode($module->explain_audio_url ?? '', JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
-        $jsAutoplay = $autoplayEnabled ? 'true' : 'false';
-        echo html_writer::tag('script',
-            'var aiqrTranslations=' . $jsTranslations . ';' .
-            'var aiqrEnText=' . $jsEnText . ';' .
-            'var aiqrEnProTip=' . $jsEnProTip . ';' .
-            'var aiqrEnAudio=' . $jsEnAudio . ';' .
-            'var aiqrAutoplay=' . $jsAutoplay . ';',
-            ['type' => 'text/javascript']
-        );
-        echo html_writer::tag('script', '
-(function (){
-  function escHtml(s){
-    return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-  }
-  // Extract "Pro Tip:" from raw explain_text using same logic as PHP regex (\n+\s*Pro Tip:).
-  // Returns {main: string, proTip: string}.
-  function splitProTip(raw){
-    var m=raw.match(/\n+\s*Pro Tip:\s*([\s\S]+)$/i);
-    if(m){
-      return {
-        main: raw.replace(/\n+\s*Pro Tip:\s*[\s\S]+$/i,"").trim(),
-        proTip: m[1].trim()
-      };
     }
-    return {main:raw.trim(), proTip:""};
-  }
-  function applyText(mainText, proTipText){
-    // FIX-EXPLAIN-FULLSTOP (v1.2.53): Add missing terminal full stop for translated text.
-    if(mainText && !/[.?!]\s*$/.test(mainText)){mainText+='.';}
-    var txt=document.querySelector(".aiqr-explain-text");
-    var proTipEl=document.querySelector(".aiqr-pro-tip");
-    if(txt) txt.innerHTML=escHtml(mainText).replace(/\n/g,"<br>");
-    if(proTipEl){
-      if(proTipText){
-        proTipEl.innerHTML="<strong>Pro Tip: <\/strong>"+escHtml(proTipText);
-        proTipEl.style.display="";
-      } else {
-        proTipEl.style.display="none";
-      }
-    }
-  }
-  function playIfAuto(aud){
-    if(aiqrAutoplay&&aud){
-      // canplaythrough fires when enough data is buffered. Fallback: play()
-      // immediately in case the event already fired before we attached.
-      aud.addEventListener("canplaythrough",function onCpt(){
-        aud.removeEventListener("canplaythrough",onCpt);
-        aud.play().catch(function (){});
-      },{once:true});
-      aud.play().catch(function (){});
-    }
-  }
-  function setLang(lang){
-    var aud=document.getElementById("aiqr-audio-main");
-    if(lang==="en"){
-      applyText(aiqrEnText, aiqrEnProTip);
-      if(aud&&aiqrEnAudio){aud.src=aiqrEnAudio;aud.load();playIfAuto(aud);}
-    } else if(aiqrTranslations[lang]){
-      var t=aiqrTranslations[lang];
-      var parts=splitProTip(t.explain_text||"");
-      applyText(parts.main, parts.proTip);
-      if(aud){
-        if(t.audio_url){aud.src=t.audio_url;aud.load();playIfAuto(aud);}
-        else{aud.removeAttribute("src");}
-      }
-    }
-  }
-  document.addEventListener("DOMContentLoaded",function (){
-    var sel=document.getElementById("aiqr-lang-select");
-    if(sel)sel.addEventListener("change",function (){setLang(sel.value);});
-  });
-})();
-', ['type' => 'text/javascript']);
-    }
-
     echo html_writer::end_div();
 }
 
+// English block.
+echo html_writer::start_div('aiqr-lesson-lang', ['data-lang' => 'en', 'lang' => 'en']);
+echo $lessondata
+    ? \local_aiquizremedial\lesson::render($lessondata, $imageurl, $teacherview)
+    : \local_aiquizremedial\lesson::render_legacy((string) ($module->explain_text ?? ''), $imageurl);
 echo html_writer::end_div();
-echo html_writer::end_div();
+
+// Translated blocks (hidden until chosen).
+$audiomap = ['en' => (string) ($module->explain_audio_url ?? '')];
+foreach ($translationsData as $code => $t) {
+    $code = clean_param($code, PARAM_ALPHANUMEXT);
+    $audiomap[$code] = (string) ($t['audio_url'] ?? '');
+    $tlesson = ($lessondata && !empty($t['lesson'])) ? \local_aiquizremedial\lesson::normalise($t['lesson']) : null;
+    echo html_writer::start_div('aiqr-lesson-lang', ['data-lang' => $code, 'lang' => $code, 'hidden' => 'hidden']);
+    echo $tlesson
+        ? \local_aiquizremedial\lesson::render($tlesson, $imageurl, $teacherview)
+        : \local_aiquizremedial\lesson::render_legacy((string) ($t['explain_text'] ?? ''), $imageurl);
+    echo html_writer::end_div();
+}
+echo html_writer::end_tag('div');
+
+// Version 1.4.1: image status for teachers (never shown to learners).
+if (has_capability('local/aiquizremedial:viewall', $context)
+        && \local_aiquizremedial\credit_calculator::is_images_enabled()) {
+    $notes = [];
+    $imgstatus = (string) ($module->image_status ?? '');
+    if (empty($module->explain_image_url) && in_array($imgstatus, ['', 'retry', 'failed', 'rejected'], true)) {
+        $notes[] = get_string('imagestatus_' . ($imgstatus === '' ? 'retry' : $imgstatus), 'local_aiquizremedial');
+        if (!empty($module->image_error)) {
+            $notes[] = get_string('imagestatus_reason', 'local_aiquizremedial', s($module->image_error));
+        }
+    }
+    $meta = !empty($module->image_meta) ? (json_decode($module->image_meta, true) ?: []) : [];
+    $prov = $meta['provenance'] ?? [];
+    if (!empty($module->explain_image_url) && ($prov['promptMode'] ?? '') === 'context_only') {
+        $notes[] = get_string('imagestatus_contextonly', 'local_aiquizremedial');
+    }
+    $qsnap = !empty($module->question_json) ? (json_decode($module->question_json, true) ?: []) : [];
+    if (!empty($qsnap['undescribed_images'])) {
+        $notes[] = get_string('imagestatus_undescribed', 'local_aiquizremedial', (int) $qsnap['undescribed_images']);
+    }
+    if (!empty($module->explain_image_url) && !empty($prov['model'])) {
+        $notes[] = get_string(
+            'imagestatus_provenance', 'local_aiquizremedial',
+            (object) ['model' => s($prov['model']), 'mode' => s($prov['promptMode'] ?? '')]);
+    }
+    if ($notes) {
+        echo html_writer::div(implode('<br>', $notes), 'aiqr-image-status');
+    }
+}
+
+if ($hasTranslations) {
+    echo html_writer::script('(function (){
+  var audio = ' . json_encode($audiomap, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) . ';
+  var autoplay = ' . ($autoplayEnabled ? 'true' : 'false') . ';
+  var sel = document.getElementById("aiqr-lang-select");
+  if (!sel) { return; }
+  sel.addEventListener("change", function () {
+    var lang = sel.value;
+    document.querySelectorAll("#aiqr-lesson .aiqr-lesson-lang").forEach(function (el) {
+      el.hidden = el.getAttribute("data-lang") !== lang;
+    });
+    var aud = document.getElementById("aiqr-audio-main");
+    if (aud) {
+      if (audio[lang]) {
+        aud.src = audio[lang]; aud.load(); aud.hidden = false;
+        if (autoplay) { aud.play().catch(function () {}); }
+      } else {
+        aud.pause(); aud.hidden = true;
+      }
+    }
+  });
+})();');
+}
 
 // Section 2: Quick check.
 if ($teacherview) {
@@ -548,7 +393,8 @@ if ($teacherview) {
 
     echo html_writer::start_div('card mb-3 aiqr-section-card');
     echo html_writer::start_div('card-body');
-    echo html_writer::tag('h4',
+    echo html_writer::tag(
+        'h4',
         get_string('section_quickcheck', 'local_aiquizremedial') .
         ' ' . html_writer::tag('small', get_string('teacherreview_readonly', 'local_aiquizremedial'), ['class' => 'text-muted'])
     );
@@ -561,7 +407,8 @@ if ($teacherview) {
         $label = s(ucfirst((string) $opt));
         if ($iscorrect) {
             // Use Bootstrap 5 classes (Moodle 4.x) — badge-success and ml-1 are Bootstrap 4 only.
-            $label .= ' ' . html_writer::tag('span',
+            $label .= ' ' . html_writer::tag(
+                'span',
                 get_string('teacherreview_correctanswer', 'local_aiquizremedial'),
                 ['class' => 'badge bg-success text-white ms-1']
             );
@@ -597,6 +444,9 @@ if ($teacherview) {
     echo html_writer::start_div('card mb-3 aiqr-section-card');
     echo html_writer::start_div('card-body');
     echo html_writer::tag('h4', get_string('section_quickcheck', 'local_aiquizremedial'));
+    if ($lessondata) {
+        echo html_writer::tag('p', get_string('quickcheck_transfer', 'local_aiquizremedial'), ['class' => 'aiqr-quickcheck-sub']);
+    }
 
     $action = new moodle_url('/local/aiquizremedial/submit.php', [
         'moduleid' => $moduleid,
@@ -679,7 +529,8 @@ echo html_writer::end_div();
 
 // Status.
 $statestr = get_string('state_' . ($completion->state ?? 'notstarted'), 'local_aiquizremedial');
-echo html_writer::tag('p',
+echo html_writer::tag(
+    'p',
     get_string('status_label', 'local_aiquizremedial') . ': ' . $statestr .
     ' | ' . get_string('attempts_label', 'local_aiquizremedial') . ': ' . (int) $completion->attempts_count,
     ['class' => 'aiqr-status-bar']

@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * local_aiquizremedial file.
+ * Part of the local_aiquizremedial plugin.
  *
  * @package    local_aiquizremedial
  * @copyright  2026 LMS-Labs
@@ -157,7 +157,7 @@ if (!$isCorrect && $completion->attempts_count >= 2) {
         echo html_writer::div(format_text($fb['explain'], FORMAT_HTML), 'aiqr-feedback-text');
     }
 
-    // v1.2.29 FIX-VOICEOVER-MISMATCH: The stored $correctFb['audio_url'] was generated
+    // Version 1.2.29 FIX-VOICEOVER-MISMATCH: The stored $correctFb['audio_url'] was generated
     // at content-creation time from "That's correct. [explanation]". The displayed
     // $revealSentence strips "That's correct." and prepends "Your answer is incorrect."
     // so playing the stored audio creates an audio/text mismatch (audio says "Correct.",

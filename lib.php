@@ -65,53 +65,54 @@ function local_aiquizremedial_get_apikey(): string {
 }
 
 /**
- * Inject a "View Learning Revisions" button for teachers on quiz view pages.
+ * Legacy footer callback — only used on Moodle 4.0–4.3.
  *
- * v1.2.33 TEACHER-BUTTON: Hooked via local_aiquizremedial_before_footer().
- * Moodle calls this function automatically before every page footer.
- * We check: (1) current page type is mod-quiz-view, (2) current user has
- * the viewall capability in the module context. If both pass, a prominent
- * button is rendered linking to index.php?courseid=X&quizid=Y so teachers
- * can jump directly to the filtered Learning Revisions list for that quiz.
+ * On Moodle 4.4+ core skips this function because the plugin registers the
+ * before_footer_html_generation hook (db/hooks.php). Before v1.3.0 this legacy function
+ * only rendered the teacher button, so on Moodle 4.0–4.3 learners NEVER saw the
+ * "Revision Modules Available" banner. It now renders exactly the same HTML as the hook.
+ *
+ * @return string
  */
-function local_aiquizremedial_before_footer(): void {
-    global $PAGE;
-
-    // Only on quiz view pages.
-    if ($PAGE->pagetype !== 'mod-quiz-view') {
-        return;
-    }
-
-    // Must be a quiz CM.
-    $cm = $PAGE->cm;
-    if (!$cm || $cm->modname !== 'quiz') {
-        return;
-    }
-
-    // Only for users with teacher-level capability.
-    $context = context_module::instance($cm->id);
-    if (!has_capability('local/aiquizremedial:viewall', $context)) {
-        return;
-    }
-
-    $courseid = $PAGE->course->id;
-    $quizid   = (int) $cm->instance;
-
-    $url = new moodle_url('/local/aiquizremedial/index.php', [
-        'courseid' => $courseid,
-        'quizid'   => $quizid,
-    ]);
-
-    echo html_writer::div(
-        html_writer::link(
-            $url,
-            get_string('view_learning_revisions', 'local_aiquizremedial'),
-            ['class' => 'btn btn-info']
-        ),
-        'container-fluid my-3'
-    );
+function local_aiquizremedial_before_footer() {
+    return \local_aiquizremedial\hook\before_footer::get_html();
 }
 
+/**
+ * Add "Revision modules" / "Remedial learning report" to the course navigation
+ * (appears in the course "More" menu in Boost).
+ *
+ * @param navigation_node $navigation
+ * @param stdClass $course
+ * @param context_course $context
+ */
+function local_aiquizremedial_extend_navigation_course($navigation, $course, $context) {
+    if (!get_config('local_aiquizremedial', 'enabled') || !isloggedin() || isguestuser()) {
+        return;
+    }
+    if (has_capability('local/aiquizremedial:viewall', $context)) {
+        $navigation->add(
+            get_string('reportnav', 'local_aiquizremedial'),
+            new moodle_url('/local/aiquizremedial/report.php', ['courseid' => $course->id]),
+            navigation_node::TYPE_CUSTOM, null, 'local_aiquizremedial_report',
+            new pix_icon('i/report', '')
+        );
+    } else if (has_capability('local/aiquizremedial:viewown', $context)) {
+        $navigation->add(
+            get_string('learnernav', 'local_aiquizremedial'),
+            new moodle_url('/local/aiquizremedial/index.php', ['courseid' => $course->id]),
+            navigation_node::TYPE_CUSTOM, null, 'local_aiquizremedial_mine',
+            new pix_icon('i/course', '')
+        );
+    }
+}
+
+/**
+ * Generate TTS audio for a piece of text.
+ *
+ * @param string $text
+ * @return string|null audio URL
+ */
 function local_aiquizremedial_tts_generate(string $text): ?string {
     if (empty($text)) {
         return null;

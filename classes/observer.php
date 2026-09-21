@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * local_aiquizremedial file.
+ * Part of the local_aiquizremedial plugin.
  *
  * @package    local_aiquizremedial
  * @copyright  2026 LMS-Labs
@@ -27,10 +27,15 @@ namespace local_aiquizremedial;
 defined('MOODLE_INTERNAL') || die();
 
 class observer {
-    public static function attempt_submitted(\mod_quiz\event\attempt_submitted $event): void {
+    /**
+     * Queue an umbrella job for a submitted / graded quiz attempt.
+     *
+     * @param \core\event\base $event attempt_submitted or attempt_graded
+     */
+    public static function attempt_submitted(\core\event\base $event): void {
         global $DB;
 
-        if (!get_config('local_aiquizremedial', 'enabled')) {
+        if (!\local_aiquizremedial\helper::source_enabled('quiz')) {
             return;
         }
 
@@ -38,6 +43,9 @@ class observer {
         $userid    = (int) ($event->relateduserid ?? $event->userid);
         $courseid  = (int) $event->courseid;
         $quizid    = isset($event->other['quizid']) ? (int) $event->other['quizid'] : null;
+        if (empty($quizid)) {
+            $quizid = (int) $DB->get_field('quiz_attempts', 'quiz', ['id' => $attemptid]) ?: null;
+        }
 
         // Check for an existing quiz umbrella job for this attempt.
         // sourcetype='quiz' is included so that KC umbrella jobs (which also have
@@ -62,6 +70,7 @@ class observer {
             'sourcetype'   => 'quiz',
             'status'       => 'pending',
             'errormsg'     => null,
+            'retries'      => 0,
             'timecreated'  => time(),
             'timemodified' => time(),
         ];

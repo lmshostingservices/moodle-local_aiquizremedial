@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * local_aiquizremedial file.
+ * Part of the local_aiquizremedial plugin.
  *
  * @package    local_aiquizremedial
  * @copyright  2026 LMS-Labs
@@ -28,13 +28,17 @@ defined('MOODLE_INTERNAL') || die();
 
 class kc_question_payload {
     public static function build(\stdClass $kc, \stdClass $attempt, \stdClass $question, array $answerdata): array {
-        // answer1..answer4 are the four option texts (1-indexed DB column names).
+        // Answer1..answer4 are the four option texts (1-indexed DB column names).
         $options = [
             (string) ($question->answer1 ?? ''),
             (string) ($question->answer2 ?? ''),
             (string) ($question->answer3 ?? ''),
             (string) ($question->answer4 ?? ''),
         ];
+        // Version 1.3.1: Knowledge Check questions can have a 5th option.
+        if (!empty($question->answer5)) {
+            $options[] = (string) $question->answer5;
+        }
 
         // BUG-KC-PAYLOAD-INDEX (v1.2.1): correctanswer and the stored answer index
         // are BOTH 0-indexed (JS sends answerIndex 0-3; KC ajax stores it via

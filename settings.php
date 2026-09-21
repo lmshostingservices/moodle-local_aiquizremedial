@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * local_aiquizremedial file.
+ * Part of the local_aiquizremedial plugin.
  *
  * @package    local_aiquizremedial
  * @copyright  2026 LMS-Labs
@@ -40,10 +40,47 @@ if ($hassiteconfig) {
         0
     ));
 
+    // Version 1.3.1: choose which activity types remedial learning applies to — none, one or both.
+    $kclabel = get_string('source_knowledgecheck', 'local_aiquizremedial');
+    if (!file_exists($CFG->dirroot . '/mod/aiknowledgecheck/version.php')) {
+        $kclabel .= ' ' . get_string('source_notinstalled', 'local_aiquizremedial');
+    }
+    $settings->add(new admin_setting_configmulticheckbox(
+        'local_aiquizremedial/sources',
+        get_string('sources', 'local_aiquizremedial'),
+        get_string('sources_desc', 'local_aiquizremedial'),
+        ['quiz' => 1, 'knowledgecheck' => 1],
+        [
+            'quiz'           => get_string('source_quiz', 'local_aiquizremedial'),
+            'knowledgecheck' => $kclabel,
+        ]
+    ));
+
     $settings->add(new admin_setting_configcheckbox(
         'local_aiquizremedial/showonquizreview',
         get_string('showonquizreview', 'local_aiquizremedial'),
         get_string('showonquizreview_desc', 'local_aiquizremedial'),
+        1
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'local_aiquizremedial/showonquizview',
+        get_string('showonquizview', 'local_aiquizremedial'),
+        get_string('showonquizview_desc', 'local_aiquizremedial'),
+        1
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'local_aiquizremedial/showoncoursepage',
+        get_string('showoncoursepage', 'local_aiquizremedial'),
+        get_string('showoncoursepage_desc', 'local_aiquizremedial'),
+        1
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'local_aiquizremedial/includeunanswered',
+        get_string('includeunanswered', 'local_aiquizremedial'),
+        get_string('includeunanswered_desc', 'local_aiquizremedial'),
         1
     ));
 
@@ -151,3 +188,11 @@ if ($hassiteconfig) {
 
     $ADMIN->add('localplugins', $settings);
 }
+
+// Version 1.3.0: cross-course remedial learning report under Site administration > Reports.
+$ADMIN->add('reports', new admin_externalpage(
+    'local_aiquizremedial_report',
+    get_string('reporttitle', 'local_aiquizremedial'),
+    new moodle_url('/local/aiquizremedial/report.php'),
+    'local/aiquizremedial:viewall'
+));
