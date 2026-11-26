@@ -36,7 +36,8 @@ class credits_client {
     private string $baseurl = 'https://lms-labs.com';
 
     public function generate_remediation(int $userid, int $courseid, array $payload): array {
-        $costperquestion = credit_calculator::get_cost_per_question();
+        // Bring your own AI: only the parts still made by LMS Labs are charged.
+        $costperquestion = \local_aiquizremedial\byok::units();
 
         // BUG-REM-CREDITS-FAILED (v1.2.35): generate content FIRST, charge credits AFTER
         // success only.  Previously credits were charged before generation; when the AI API
@@ -52,7 +53,9 @@ class credits_client {
             $payload['question']['text_html'] = $snapshot['text_html'];
         }
 
-        $gen = $this->generate_text_remediation($userid, $courseid, $payload);
+        $gen = \local_aiquizremedial\byok::uses('text')
+            ? \local_aiquizremedial\byok::generate($userid, $courseid, $payload)
+            : $this->generate_text_remediation($userid, $courseid, $payload);
 
         // Version 1.4.0: structured 4-card tutor lesson (null when the service returns the old format).
         $lesson = \local_aiquizremedial\lesson::normalise($gen['lesson'] ?? null);
@@ -61,7 +64,8 @@ class credits_client {
             $gen['explain_text'] = $ttsscript;
         }
 
-        $charge = $this->charge_credits($userid, $courseid, $costperquestion);
+        $charge = $costperquestion > 0 ? $this->charge_credits($userid, $courseid, $costperquestion)
+            : ['ok' => true, 'units' => 0];
 
         if (empty($charge['ok'])) {
             throw new \moodle_exception('insufficientcredits', 'local_aiquizremedial');
@@ -139,6 +143,9 @@ class credits_client {
     }
 
     protected function translate_and_tts(string $text, string $targetLanguage): array {
+        if (\local_aiquizremedial\byok::uses_translation()) {
+            return \local_aiquizremedial\byok::translate($text, $targetLanguage);
+        }
         $siteid = local_aiquizremedial_get_siteid();
         $apikey = local_aiquizremedial_get_apikey();
 
@@ -239,6 +246,13 @@ class credits_client {
     }
 
     protected function tts(string $text): array {
+        if (\local_aiquizremedial\byok::uses('voice')) {
+            try {
+                return ['audio_url' => \local_aiquizremedial\byok::tts_url($text)];
+            } catch (\Throwable $e) {
+                return ['audio_url' => null];
+            }
+        }
         $siteid = local_aiquizremedial_get_siteid();
         $apikey = local_aiquizremedial_get_apikey();
 
@@ -278,6 +292,9 @@ class credits_client {
      * @return array {ok: bool, image_url?: string, provenance?: array, error?: string, retryable?: bool, http?: int}
      */
     public function generate_image(string $context, ?array $snapshot): array {
+        if (\local_aiquizremedial\byok::uses('image')) {
+            return \local_aiquizremedial\byok::image($context, $snapshot);
+        }
         $siteid = local_aiquizremedial_get_siteid();
         $apikey = local_aiquizremedial_get_apikey();
         if ($siteid === '' || $apikey === '') {

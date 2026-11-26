@@ -46,6 +46,11 @@ $string['siteid'] = 'Site ID';
 $string['siteid_desc'] = 'Your AI Grader Site ID. Leave blank to use Central Config.';
 $string['apikey'] = 'API Key';
 $string['apikey_desc'] = 'Your AI Grader API Key. Leave blank to use Central Config.';
+$string['byok_part_image'] = 'pictures';
+$string['byok_part_text'] = 'lessons';
+$string['byok_part_translation'] = 'translations';
+$string['byok_part_voice'] = 'narration';
+$string['byok_settings'] = 'Bring your own AI is on. These parts of each revision module are made on your site\'s own AI and use no LMS Labs credits: {$a}. Anything else still uses LMS Labs credits.';
 
 // Settings - Features.
 $string['features_heading'] = 'Feature Options';

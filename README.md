@@ -9,6 +9,10 @@ Generates AI revision modules for questions a learner gets wrong or leaves blank
 
 Requires Moodle 4.0+.
 
+## Bring your own AI
+
+With an LMS Labs Bring your own AI licence, set Text and Images to Moodle AI or your own key, and Voice to your own key, in AI Grader Central Config (`local_aiconfig`). Each part of a revision module then runs on your site's own AI and uses no credits: lessons (Text), narration (Voice), pictures (Images) and translations (Text and Voice). Parts left on LMS Labs credits still use credits. The plugin sends the same prompts as the LMS Labs service and checks the AI's answers the same way.
+
 ## Licence
 
 GNU GPL v3 or later.
