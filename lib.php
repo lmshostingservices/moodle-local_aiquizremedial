@@ -117,6 +117,14 @@ function local_aiquizremedial_tts_generate(string $text): ?string {
     if (empty($text)) {
         return null;
     }
+    if (\local_aiquizremedial\byok::uses('voice')) {
+        // Bring your own AI: the site's own voice, the same audio format as LMS Labs returns.
+        try {
+            return \local_aiquizremedial\byok::tts_url($text);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
     $siteid = local_aiquizremedial_get_siteid();
     $apikey = local_aiquizremedial_get_apikey();
     if (empty($siteid) || empty($apikey)) {
@@ -145,5 +153,30 @@ function local_aiquizremedial_tts_generate(string $text): ?string {
         // Silently fail — no audio is better than the wrong audio.
         return null;
     }
+}
+
+/**
+ * Serve pictures made on the site's own AI (Bring your own AI) to signed-in users.
+ *
+ * @param stdClass $course
+ * @param stdClass|null $cm
+ * @param context $context
+ * @param string $filearea
+ * @param array $args
+ * @param bool $forcedownload
+ * @param array $options
+ * @return bool false when the file is not found
+ */
+function local_aiquizremedial_pluginfile($course, $cm, $context, $filearea, $args, $forcedownload, array $options = []) {
+    if ($context->contextlevel !== CONTEXT_SYSTEM || $filearea !== \local_aiquizremedial\byok::FILEAREA) {
+        return false;
+    }
+    require_login(null, false);
+    $filename = array_pop($args);
+    $file = get_file_storage()->get_file($context->id, 'local_aiquizremedial', $filearea, 0, '/', $filename);
+    if (!$file || $file->is_directory()) {
+        return false;
+    }
+    send_stored_file($file, DAYSECS, 0, $forcedownload, $options);
 }
 

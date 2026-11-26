@@ -17,6 +17,11 @@
 /**
  * Version metadata for AI Quiz Remedial Learning.
  *
+ * v1.6.0: BRING YOUR OWN AI. With an LMS Labs Bring your own AI licence, each part of a revision
+ *   module follows its service in AI Grader Central Config: lessons (Text), narration (Voice),
+ *   pictures (Images) and translations (Text and Voice) run on the site's own AI with no credits;
+ *   parts left on credits are charged as before. The service's routes are ported to PHP
+ *   (classes/local/byok) and match the service's code on 21,000 generated cases.
  * v1.5.0: QUIZ INSIGHTS AND SUGGESTED ACTIONS. New Insights and Suggested actions tabs
  *   (insights.php) built on nightly response and statistics tables; 13 rules raise tracked
  *   actions with an audit trail, weekly digest and before/after impact measurement.
@@ -326,7 +331,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_aiquizremedial';
-$plugin->version   = 2026092300;
+$plugin->version   = 2026112600;
 $plugin->requires  = 2022041900; // Moodle 4.0.
 $plugin->maturity  = MATURITY_STABLE;
-$plugin->release   = '1.5.0';
+$plugin->release   = '1.6.0';

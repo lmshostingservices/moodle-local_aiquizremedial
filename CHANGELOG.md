@@ -2,6 +2,17 @@
 
 All notable changes to this plugin will be documented in this file.
 
+## [1.6.0] — 2026-11-26
+
+Bring your own AI. With an LMS Labs Bring your own AI licence, revision modules can be made on your site's own AI instead of LMS Labs credits.
+
+### Added
+- Each part of a revision module follows its service in AI Grader Central Config (`local_aiconfig`): the tutor lesson follows Text, narration follows Voice, the picture follows Images, and translations follow Text and Voice together. A part set to Moodle AI or your own key runs from your Moodle site straight to your AI provider and uses no credits. Parts left on LMS Labs credits run and are charged as before, and only those parts are charged.
+- The LMS Labs service's routes are ported to PHP (`classes/local/byok`): the same prompts, word limits, checks, one repair round, the older single-explanation fallback, translation line rules and picture prompt. They were compared with the service's code on 21,000 generated requests and AI answers, with identical results.
+- Narration uses the same audio format as the service (Ogg Opus, or MP3 for long text). With an own OpenAI voice it uses "shimmer", the closest match to the service's voices; with an own Google key it uses the service's exact voices.
+- Pictures made on your own AI are kept in Moodle and served to signed-in users.
+- The settings page says which parts run on your own AI.
+
 ## [1.5.0] — 2026-09-21
 
 Quiz Insights and Suggested actions. The remedial report becomes a quiz-improvement tool: it shows where learners go wrong, turns patterns into tracked actions for the right person, and measures whether each fix worked. No change to prices or credit amounts.

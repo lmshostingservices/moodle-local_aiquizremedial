@@ -1,0 +1,55 @@
+{
+ "lesson": {
+  "misconception_diagnosis": "Believes a stopped conveyor is safe to touch without isolation.",
+  "answer_strip": "The answer is B: isolate and lock the conveyor first.",
+  "cards": [
+   {
+    "id": "tempting",
+    "heading": "Why it seemed right",
+    "body": "Pressing the stop button feels safe. The belt goes quiet and nothing moves. That makes the job look ready to start. But a stop button can be reset by anyone. The power is still connected to the motor.",
+    "hook_type": null
+   },
+   {
+    "id": "principle",
+    "heading": "The key idea",
+    "body": "Isolation means you cut the energy at its source. You then fit your own lock and tag. This rule exists because machines can start without warning. Work health and safety law expects isolation before any hands-on work.",
+    "hook_type": null
+   },
+   {
+    "id": "example",
+    "heading": "See it at work",
+    "body": "Aisha is changing a blade on a bakery slicer. She switches off the isolator on the wall. She fits her personal lock and a danger tag. Then she presses start to test it is dead. Only then does she open the guard.",
+    "hook_type": null
+   },
+   {
+    "id": "hook",
+    "heading": "Lock it in",
+    "body": "Stopped is not safe. Think of a parked car with the engine running. Only your own lock makes the machine truly safe to touch.",
+    "hook_type": "contrast"
+   }
+  ],
+  "takeaway": "Stopped is not safe until your own lock is on."
+ },
+ "check_question": {
+  "prompt": "Tom needs to clear a jam in a packing machine. What should he do first?",
+  "options": [
+   "Press the emergency stop and reach in",
+   "Isolate the power and fit his own lock",
+   "Ask a workmate to watch the controls"
+  ],
+  "correct_index": 1
+ },
+ "feedback": [
+  {
+   "explain": "An emergency stop can be reset. Remember, stopped is not safe."
+  },
+  {
+   "explain": "That's correct. Isolating and locking removes the energy source."
+  },
+  {
+   "explain": "A workmate cannot stop someone else from restarting it."
+  }
+ ],
+ "tts_script": "The answer is B. Isolate and lock the conveyor first. Pressing the stop button feels safe. The belt goes quiet and nothing moves. But a stop button can be reset by anyone. Isolation means you cut the energy at its source. You then fit your own lock and tag. Aisha switches off the isolator before changing a slicer blade. She tests that it is dead before opening the guard. Stopped is not safe. Only your own lock makes the machine truly safe to touch.",
+ "explain_text": "The answer is B. Isolate and lock the conveyor first. Pressing the stop button feels safe. The belt goes quiet and nothing moves. But a stop button can be reset by anyone. Isolation means you cut the energy at its source. You then fit your own lock and tag. Aisha switches off the isolator before changing a slicer blade. She tests that it is dead before opening the guard. Stopped is not safe. Only your own lock makes the machine truly safe to touch."
+}

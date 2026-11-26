@@ -112,6 +112,23 @@ if ($hassiteconfig) {
             . 'to share Site ID and API Key across all AI Grader plugins, or enter them below.</div>';
     }
 
+    // Bring your own AI: say which parts run on the site's own AI.
+    $ownparts = [];
+    foreach (['text' => 'byok_part_text', 'voice' => 'byok_part_voice', 'image' => 'byok_part_image'] as $service => $key) {
+        if (\local_aiquizremedial\byok::uses($service)) {
+            $ownparts[] = get_string($key, 'local_aiquizremedial');
+        }
+    }
+    if (\local_aiquizremedial\byok::uses_translation()) {
+        $ownparts[] = get_string('byok_part_translation', 'local_aiquizremedial');
+    }
+    if ($ownparts) {
+        $ownicon = \html_writer::tag('i', '', ['class' => 'fa fa-microchip me-2', 'aria-hidden' => 'true']);
+        $owntext = s(get_string('byok_settings', 'local_aiquizremedial', implode(', ', $ownparts)));
+        $ownalert = \html_writer::div($ownicon . $owntext, 'alert alert-success d-flex align-items-center py-2');
+        $centralconfigstatus = $ownalert . $centralconfigstatus;
+    }
+
     $settings->add(new admin_setting_heading(
         'local_aiquizremedial/centralconfigstatus',
         '',
